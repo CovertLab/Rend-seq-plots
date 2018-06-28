@@ -48,15 +48,44 @@ def load_wigs(wig_file, strands, genome_size):
 if __name__ == '__main__':
     reads = load_wigs(WIG_FILE, WIG_STRANDS, GENOME_SIZE)
 
-    start = 167254
-    end = 175106
+    # f1
+    start = 1
+    end = 5233
+    sigma_on = 0.5
+    sigma_off = 0.5
+
+    # f1
+    start = 16547
+    end = 21180
+    sigma_on = 0.6
+    sigma_off = 1.
+
+    # # f33 and f34
+    # start = 164524
+    # # end = 167422
+    # # start = 167254
+    # end = 175106
+    # sigma_on = 0.6
+    # sigma_off = 1.
+
+    # # f39 and f40
+    # start = 183610
+    # # end = 194775
+    # # start = 194733
+    # end = 214290
+    # sigma_on = 0.5
+    # sigma_off = 0.5
+
+    # # f823
+    # start = 3427802
+    # end = 3436017
+    # sigma_on = 0.6
+    # sigma_off = 1.
 
     total_reads = reads[0, start:end] + reads[2, start:end]
 
     p = 3000 / GENOME_SIZE
     pi = np.array([0.5, 0.5])
-    sigma_on = 0.6
-    sigma_off = 1.
 
     A = np.array([[1-p, p], [p, 1-p]])
     Bon = np.array([[np.exp(-1/(2*sigma_on**2)), 0], [0, 1]]) / np.sqrt(2*np.pi*sigma_on**2)
@@ -77,23 +106,25 @@ if __name__ == '__main__':
         Sf[i+1] = alpha[1, i+1]
 
     Sr = np.zeros(end-start)
-    alpha = np.zeros((2, end-start))
-    alpha[:, 0] = pi
-    for i, read in enumerate(total_reads[-2::-1]):
+    beta = np.zeros((2, end-start))
+    beta[:, 0] = np.ones_like(pi)
+    for i, read in enumerate(total_reads[-1:0:-1]):
         if read > 0:
             B = Bon
         else:
             B = Boff
 
-        probs = np.dot(np.dot(B, A.T), alpha[:, i].T)
+        probs = np.dot(np.dot(beta[:, i].T, A), B)
 
-        alpha[:, i+1] = probs / np.sum(probs)
-        Sr[i+1] = alpha[1, i+1]
+        beta[:, i+1] = probs / np.sum(probs)
+        Sr[i+1] = beta[1, i+1]
+
+    smoothed = alpha * beta[:, ::-1]
+    gamma = smoothed / np.sum(smoothed, axis=0)
 
     plt.figure(figsize=(20,10))
-    plt.plot(range(start,end), total_reads)
-    plt.plot(range(start,end), Sf > 0.5, 'r')
-    plt.plot(range(start,end), Sr[::-1] > 0.5, 'g')
-    plt.plot(range(start,end), Sf + Sr[::-1] > 0.75, 'k')
+    plt.plot(range(start,end), np.log10(total_reads))
+    plt.plot(range(start,end), Sf, 'r')
+    plt.plot(range(start,end), Sr[::-1], 'g')
+    plt.plot(range(start,end), gamma[1, :] > 0.1, 'k')
     plt.show()
-    # import ipdb; ipdb.set_trace()
