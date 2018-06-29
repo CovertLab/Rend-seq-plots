@@ -6,7 +6,7 @@ import os
 import csv
 from matplotlib import pyplot as plt
 
-WIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wigs_U000962')
+WIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
 WIG_FILE = os.path.join(WIG_DIR, 'GSM2971252_Escherichia_coli_WT_Rend_seq_5_exo_MOPS_comp_25s_frag_pooled_{}_no_shadow.wig')
 WIG_STRANDS = ['3f', '3r', '5f', '5r']
 
@@ -48,13 +48,14 @@ def load_wigs(wig_file, strands, genome_size):
 if __name__ == '__main__':
     reads = load_wigs(WIG_FILE, WIG_STRANDS, GENOME_SIZE)
 
+    # information for specific test cases
     # f1
     start = 1
     end = 5233
     sigma_on = 0.5
     sigma_off = 0.5
 
-    # f1
+    # f5
     start = 16547
     end = 21180
     sigma_on = 0.6
@@ -82,6 +83,7 @@ if __name__ == '__main__':
     # sigma_on = 0.6
     # sigma_off = 1.
 
+    # two level HMM test case with forward-backward algorithm
     total_reads = reads[0, start:end] + reads[2, start:end]
 
     p = 3000 / GENOME_SIZE
