@@ -8,6 +8,8 @@ import pandas as pd
 import re
 #import scipy as sp
 
+import pyfftw.interfaces.scipy_fftpack as fftw
+
 # Make these variables global?
 data_subfolder = 'wigs_U000962'
 data_file_name = "GSM2971252_Escherichia_coli_WT_Rend_seq_5_exo_MOPS_comp_25s_frag_pooled_*_no_shadow.wig"
@@ -283,8 +285,7 @@ direction = seq_directions[3]
 
 filter_for_fft = create_fft_filter(direction, genome_size, half_width_z_score)
 
-import pdb; pdb.set_trace()
-fft_data = np.fft.fft(single_data_set, len_data)
+fft_data = fftw.fft(single_data_set, len_data)
 
 
 
