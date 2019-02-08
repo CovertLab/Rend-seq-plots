@@ -143,7 +143,7 @@ def load_genome(path=None):
 def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold=0.25, gap_peak=2, gap_step=3):
     '''
     Calculates peak and step z scores for the wig data.
-    Port of get_data_compute_statistic_20180130
+    Based on get_data_compute_statistic_20180130.m
 
     Args:
         wigs (ndarray[float]): 2D array, dims: (n strands, genome size), for reads on each strand
@@ -158,7 +158,7 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
         z_step (ndarray[float]): 2D array, dims: (n strands, genome size) step z score
 
     TODO:
-        Add other filter options as in filter_generator_20180130?
+        Add other filter options as in filter_generator_20180130.m?
     '''
 
     def convolve(data, filter):
@@ -167,39 +167,40 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
 
     dims = wigs.shape
 
-    z_peak = np.zeros(dims)
+    z_peak = np.ones(dims)
     z_step = np.zeros(dims)
 
     for i, strand in enumerate(wigs):
         # Create filters
         midpoint = GENOME_SIZE // 2
-        filter = np.zeros(GENOME_SIZE)
-        right_filter = np.zeros(GENOME_SIZE)
-        left_filter = np.zeros(GENOME_SIZE)
-        if i == 0 or i == 3:
-            filter[midpoint:(midpoint + 2 * half_width_peak)] = 1 / (2 * half_width_peak)  # Forward filter
-        else:
-            filter[(midpoint - 2 * half_width_peak):midpoint] = 1 / (2 * half_width_peak)  # Reverse filter
-        right_filter[(midpoint + gap_step):(midpoint + half_width_step + gap_step)] = 1 / half_width_step
-        left_filter[(midpoint - half_width_step - gap_step):(midpoint - gap_step)] = 1 / half_width_step
+        right_filter_peak = np.zeros(GENOME_SIZE)
+        left_filter_peak = np.zeros(GENOME_SIZE)
+        right_filter_step = np.zeros(GENOME_SIZE)
+        left_filter_step = np.zeros(GENOME_SIZE)
+        right_filter_peak[midpoint:(midpoint + half_width_peak)] = 1 / (half_width_peak)
+        left_filter_peak[(midpoint - half_width_peak):midpoint] = 1 / (half_width_peak)
+        right_filter_step[(midpoint + gap_step):(midpoint + half_width_step + gap_step)] = 1 / half_width_step
+        left_filter_step[(midpoint - half_width_step - gap_step):(midpoint - gap_step)] = 1 / half_width_step
 
         # Fast Fourier Transforms
         ft_strand = fftw.fft(strand)
         ft_strand2 = fftw.fft(strand**2)
-        ft_filter = fftw.fft(filter)
-        ft_right_filter = fftw.fft(right_filter)
-        ft_left_filter = fftw.fft(left_filter)
+        ft_right_filter_peak = fftw.fft(right_filter_peak)
+        ft_left_filter_peak = fftw.fft(left_filter_peak)
+        ft_right_filter_step = fftw.fft(right_filter_step)
+        ft_left_filter_step = fftw.fft(left_filter_step)
 
         # Calculate peak z score
-        average = convolve(ft_strand, ft_filter)
-        std = np.sqrt(convolve(ft_strand2, ft_filter) - average**2)
-        z_peak[i, :] = (average > threshold) * (strand - average) / (std + (average == 0))
+        for ft_filter in [ft_right_filter_peak, ft_left_filter_peak]:
+            average = convolve(ft_strand, ft_filter)
+            std = np.sqrt(convolve(ft_strand2, ft_filter) - average**2)
+            z_peak[i, :] *= (average > threshold) * (strand - average) / (std + (average == 0))
 
         # Calculate step z score
-        right_average = convolve(ft_strand, ft_right_filter)
-        left_average = convolve(ft_strand, ft_left_filter)
-        right_std = np.sqrt(convolve(ft_strand2, ft_right_filter) - right_average**2)
-        left_std = np.sqrt(convolve(ft_strand2, ft_left_filter) - left_average**2)
+        right_average = convolve(ft_strand, ft_right_filter_step)
+        left_average = convolve(ft_strand, ft_left_filter_step)
+        right_std = np.sqrt(convolve(ft_strand2, ft_right_filter_step) - right_average**2)
+        left_std = np.sqrt(convolve(ft_strand2, ft_left_filter_step) - left_average**2)
         positive_samples = (right_average > threshold) | (left_average > threshold)
         z_step[i, :] = np.abs(positive_samples * (right_average - left_average) / np.sqrt(right_std + left_std + ~positive_samples))
 
