@@ -8,7 +8,6 @@ import re
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pyfftw.interfaces.scipy_fftpack as fftw
 
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -161,46 +160,40 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
         Add other filter options as in filter_generator_20180130.m?
     '''
 
-    def convolve(data, filter):
-        # Need to use np.real to remove numerically 0 imaginary portion to match matlab
-        return fftw.fftshift(np.real(fftw.ifft(filter * data)))
-
     dims = wigs.shape
 
     z_peak = np.ones(dims)
     z_step = np.zeros(dims)
 
-    for i, strand in enumerate(wigs):
-        # Create filters
-        midpoint = GENOME_SIZE // 2
-        right_filter_peak = np.zeros(GENOME_SIZE)
-        left_filter_peak = np.zeros(GENOME_SIZE)
-        right_filter_step = np.zeros(GENOME_SIZE)
-        left_filter_step = np.zeros(GENOME_SIZE)
-        right_filter_peak[midpoint:(midpoint + half_width_peak)] = 1 / (half_width_peak)
-        left_filter_peak[(midpoint - half_width_peak):midpoint] = 1 / (half_width_peak)
-        right_filter_step[(midpoint + gap_step):(midpoint + half_width_step + gap_step)] = 1 / half_width_step
-        left_filter_step[(midpoint - half_width_step - gap_step):(midpoint - gap_step)] = 1 / half_width_step
+    window_peak = half_width_peak * 2 + 1
+    window_step = (half_width_step + gap_step) * 2 + 1
 
-        # Fast Fourier Transforms
-        ft_strand = fftw.fft(strand)
-        ft_strand2 = fftw.fft(strand**2)
-        ft_right_filter_peak = fftw.fft(right_filter_peak)
-        ft_left_filter_peak = fftw.fft(left_filter_peak)
-        ft_right_filter_step = fftw.fft(right_filter_step)
-        ft_left_filter_step = fftw.fft(left_filter_step)
+    # Convolution vectors for peak calculation
+    right_conv_peak = np.zeros(window_peak)
+    left_conv_peak = np.zeros(window_peak)
+    right_conv_peak[half_width_peak+1:] = 1 / half_width_peak
+    left_conv_peak[:half_width_peak] = 1 / half_width_peak
+
+    # Convolution vectors for step calculation
+    right_conv_step = np.zeros(window_step)
+    left_conv_step = np.zeros(window_step)
+    right_conv_step[half_width_step+2*gap_step+1:] = 1 / half_width_step
+    left_conv_step[:half_width_step] = 1 / half_width_step
+
+    for i, strand in enumerate(wigs):
+        strand2 = strand**2
 
         # Calculate peak z score
-        for ft_filter in [ft_right_filter_peak, ft_left_filter_peak]:
-            average = convolve(ft_strand, ft_filter)
-            std = np.sqrt(convolve(ft_strand2, ft_filter) - average**2)
+        for conv in [right_conv_peak, left_conv_peak]:
+            average = np.convolve(strand, conv, 'same')
+            std = np.sqrt(np.convolve(strand2, conv, 'same') - average**2)
             z_peak[i, :] *= (average > threshold) * (strand - average) / (std + (average == 0))
 
         # Calculate step z score
-        right_average = convolve(ft_strand, ft_right_filter_step)
-        left_average = convolve(ft_strand, ft_left_filter_step)
-        right_std = np.sqrt(convolve(ft_strand2, ft_right_filter_step) - right_average**2)
-        left_std = np.sqrt(convolve(ft_strand2, ft_left_filter_step) - left_average**2)
+        right_average = np.convolve(strand, right_conv_step, 'same')
+        left_average = np.convolve(strand, left_conv_step, 'same')
+        right_std = np.sqrt(np.convolve(strand2, right_conv_step, 'same') - right_average**2)
+        left_std = np.sqrt(np.convolve(strand2, left_conv_step, 'same') - left_average**2)
         positive_samples = (right_average > threshold) | (left_average > threshold)
         z_step[i, :] = np.abs(positive_samples * (right_average - left_average) / np.sqrt(right_std + left_std + ~positive_samples))
 
