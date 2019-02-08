@@ -1,0 +1,5 @@
+numpy==1.16.1
+pyfftw==0.11.1
+ipdb==0.11
+scipy==1.2.0
+matplotlib==3.0.2
