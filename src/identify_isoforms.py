@@ -111,12 +111,12 @@ def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
         ma_pad (int): pad around central point used for moving average
 
     Returns:
-        real_starts (list[int]): location of starts of regions with reads (transcription units)
-        real_ends (list[int]): location of ends of regions with reads (transcription units)
+        region_starts (list[int]): location of starts of regions with reads (transcription units)
+        region_ends (list[int]): location of ends of regions with reads (transcription units)
     '''
 
-    real_starts = []
-    real_ends = []
+    region_starts = []
+    region_ends = []
 
     n_genes = len(starts)
     n_no_reads = len(no_reads)
@@ -132,7 +132,7 @@ def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
             start = no_reads[no_reads < starts[gene] - gene_pad][-1]
             pos = np.where(no_reads == start)[0][0]
 
-        real_starts.append(max(0, start - gene_pad) + 1)
+        region_starts.append(max(0, start - gene_pad) + 1)
 
         while gene < n_genes - 1 and pos < n_no_reads - 1:
             if ends[gene] + gene_pad > no_reads[pos] - ma_pad:
@@ -140,16 +140,89 @@ def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
             elif no_reads[pos] + ma_pad > starts[gene + 1] - gene_pad:
                 gene += 1
             else:
-                real_ends.append(min(util.GENOME_SIZE, no_reads[pos] + gene_pad + 1))
+                region_ends.append(min(util.GENOME_SIZE, no_reads[pos] + gene_pad + 1))
                 break
 
         gene += 1
 
     ## Add the end of the genome as the final end if not added already
-    if len(real_starts) != len(real_ends):
-        real_ends.append(util.GENOME_SIZE)
+    if len(region_starts) != len(region_ends):
+        region_ends.append(util.GENOME_SIZE)
 
-    return real_starts, real_ends
+    return region_starts, region_ends
+
+def identify_transcription_units(starts, ends, start_score, end_score, threshold=5, rev=False):
+    '''
+    Identifies transcription units from scores.
+
+    Args:
+        starts (list[int]): start position for each region
+        ends (list[int]): end position for each region
+        start_score (ndarray[float]): score for transcript starts at each position
+        end_score (ndarray[float]): score for transcript ends at each position
+        threshold (float): threshold for score to call a peak
+        rev (bool): True if for reverse strand
+
+    Returns:
+        tu_starts (list[list[int]]): start position of each transcription unit for
+            each gene region
+        tu_ends (list[list[int]]): end position of each transcription unit for
+            each gene region
+    '''
+
+    def combine_positions(score, threshold, gap=3):
+        '''
+        Combines nearby positions that are above the threshold to prevent duplicate
+        positions for the same peak (start/stop).
+
+        Args:
+            score (ndarray[float]): score for start or end within a region of interest
+            threshold (float): threshold for the score to be labeled a peak
+            gap (int): maximum gap of positions being below threshold to consider all
+                positions to be part of the same peak
+
+        Returns:
+            ndarray[int]: unique peak positions
+        '''
+
+        combined = []
+        pos = np.where(score > threshold)[0]
+
+        if len(pos) > 0:
+            group = [pos[0]]
+            for p in pos[1:]:
+                if p - group[-1] < gap:
+                    group.append(p)
+                else:
+                    combined.append(group[np.argmax(score[group])])
+                    group = [p]
+
+            combined.append(group[np.argmax(score[group])])
+        return np.array(combined)
+
+    all_starts = []
+    all_ends = []
+
+    for s, e in zip(starts, ends):
+        threshold_starts = s - 1 + combine_positions(start_score[s-1:e-1], threshold)
+        threshold_ends = s - 1 + combine_positions(end_score[s-1:e-1], threshold)
+
+        tu_starts = []
+        tu_ends = []
+        for ts in threshold_starts:
+            for te in threshold_ends:
+                if rev:
+                    ts = -ts
+                    te = -te
+
+                if ts < te:
+                    tu_starts.append(ts)
+                    tu_ends.append(te)
+
+        all_starts.append(tu_starts)
+        all_ends.append(tu_ends)
+
+    return all_starts, all_ends
 
 
 if __name__ == '__main__':
@@ -195,18 +268,19 @@ if __name__ == '__main__':
     starts = all_starts[all_starts > 0]
     ends = all_ends[all_ends > 0]
 
-    real_starts, real_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
-
-    # Plot forward strand regions
-    print('Plotting forward regions...')
+    region_starts, region_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
     start_peak = z_peak[2, :]
     end_peak = z_peak[0, :]
     start_step = z_step_neg[0, :]
     end_step = z_step_pos[0, :]
     start_comb = start_peak * start_step
     end_comb = end_peak * end_step
+    tu_starts, tu_ends = identify_transcription_units(region_starts, region_ends, start_comb, end_comb)
+
+    # Plot forward strand regions
+    print('Plotting forward regions...')
     labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
-    for i, (start, end) in enumerate(zip(real_starts, real_ends)):
+    for i, (start, end) in enumerate(zip(region_starts, region_ends)):
         scores = np.vstack((start_peak[start:end], end_peak[start:end], start_step[start:end], end_step[start:end], start_comb[start:end], end_comb[start:end]))
         util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{label}.png'))
@@ -220,18 +294,19 @@ if __name__ == '__main__':
     starts = -all_starts[all_starts < 0][::-1]
     ends = -all_ends[all_ends < 0][::-1]
 
-    real_starts, real_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
-
-    # Plot reverse strand regions
-    print('Plotting reverse regions...')
+    region_starts, region_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
     start_peak = z_peak[3, ::-1]
     end_peak = z_peak[1, ::-1]
     start_step = z_step_pos[1, ::-1]
     end_step = z_step_neg[1, ::-1]
     start_comb = start_peak * start_step
     end_comb = end_peak * end_step
+    tu_starts, tu_ends = identify_transcription_units(region_starts, region_ends, start_comb[::-1], end_comb[::-1], rev=True)
+
+    # Plot reverse strand regions
+    print('Plotting reverse regions...')
     labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
-    for i, (start, end) in enumerate(zip(real_starts[::-1], real_ends[::-1])):
+    for i, (start, end) in enumerate(zip(region_starts[::-1], region_ends[::-1])):
         scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], start_step[-end:-start], end_step[-end:-start], start_comb[-end:-start], end_comb[-end:-start]))
         util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{label}.png'))
