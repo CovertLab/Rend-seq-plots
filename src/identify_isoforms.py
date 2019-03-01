@@ -203,9 +203,11 @@ if __name__ == '__main__':
     end_peak = z_peak[0, :]
     start_step = z_step_neg[0, :]
     end_step = z_step_pos[0, :]
-    labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
+    start_comb = start_peak * start_step
+    end_comb = end_peak * end_step
+    labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
     for i, (start, end) in enumerate(zip(real_starts, real_ends)):
-        scores = np.vstack((start_peak[start:end], end_peak[start:end], start_step[start:end], end_step[start:end]))
+        scores = np.vstack((start_peak[start:end], end_peak[start:end], start_step[start:end], end_step[start:end], start_comb[start:end], end_comb[start:end]))
         util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{label}.png'))
 
@@ -226,8 +228,10 @@ if __name__ == '__main__':
     end_peak = z_peak[1, ::-1]
     start_step = z_step_pos[1, ::-1]
     end_step = z_step_neg[1, ::-1]
-    labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
+    start_comb = start_peak * start_step
+    end_comb = end_peak * end_step
+    labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
     for i, (start, end) in enumerate(zip(real_starts[::-1], real_ends[::-1])):
-        scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], start_step[-end:-start], end_step[-end:-start]))
+        scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], start_step[-end:-start], end_step[-end:-start], start_comb[-end:-start], end_comb[-end:-start]))
         util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{label}.png'))
