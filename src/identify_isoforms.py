@@ -13,6 +13,66 @@ import util
 label = '_0.05'
 
 
+def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold=0.25, gap_peak=2, gap_step=3):
+    '''
+    Calculates peak and step z scores for the wig data.
+    Based on get_data_compute_statistic_20180130.m
+
+    Args:
+        wigs (ndarray[float]): 2D array, dims: (n strands, genome size), for reads on each strand
+        half_width_peak (int): half width of window for averaging for peak z score
+        half_width_step (int): half width of window for averaging for step z score
+        threshold (float): average read density (read/nt) threshold for consideration
+        gap_peak (int): gap left out (both sides) of central position for peak z score
+        gap_step (int): gap left out (both sides) of central position for step z score
+
+    Returns:
+        z_peak (ndarray[float]): 2D array, dims: (n strands, genome size) peak z score
+        z_step (ndarray[float]): 2D array, dims: (n strands, genome size) step z score
+
+    TODO:
+        Add other filter options as in filter_generator_20180130.m?
+    '''
+
+    dims = wigs.shape
+
+    z_peak = np.ones(dims)
+    z_step = np.zeros(dims)
+
+    window_peak = half_width_peak * 2 + 1
+    window_step = (half_width_step + gap_step) * 2 + 1
+
+    # Convolution vectors for peak calculation
+    right_conv_peak = np.zeros(window_peak)
+    left_conv_peak = np.zeros(window_peak)
+    right_conv_peak[half_width_peak+1:] = 1 / half_width_peak
+    left_conv_peak[:half_width_peak] = 1 / half_width_peak
+
+    # Convolution vectors for step calculation
+    right_conv_step = np.zeros(window_step)
+    left_conv_step = np.zeros(window_step)
+    right_conv_step[half_width_step+2*gap_step+1:] = 1 / half_width_step
+    left_conv_step[:half_width_step] = 1 / half_width_step
+
+    for i, strand in enumerate(wigs):
+        strand2 = strand**2
+
+        # Calculate peak z score
+        for conv in [right_conv_peak, left_conv_peak]:
+            average = np.convolve(strand, conv, 'same')
+            std = np.sqrt(np.convolve(strand2, conv, 'same') - average**2)
+            z_peak[i, :] *= (average > threshold) * (strand - average) / (std + (average == 0))
+
+        # Calculate step z score
+        right_average = np.convolve(strand, right_conv_step, 'same')
+        left_average = np.convolve(strand, left_conv_step, 'same')
+        right_std = np.sqrt(np.convolve(strand2, right_conv_step, 'same') - right_average**2)
+        left_std = np.sqrt(np.convolve(strand2, left_conv_step, 'same') - left_average**2)
+        positive_samples = (right_average > threshold) | (left_average > threshold)
+        z_step[i, :] = np.abs(positive_samples * (right_average - left_average) / np.sqrt(right_std + left_std + ~positive_samples))
+
+    return z_peak, z_step
+
 def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
     '''
     Identify transcription unit region starts and ends based on no reads between regions.
@@ -85,7 +145,7 @@ if __name__ == '__main__':
     # Calculate Statistics
     wigs = util.load_wigs()
     print('Calculating z scores...')
-    z_peak, z_step = util.z_score_statistics(wigs, half_width_peak=half_width_peak,
+    z_peak, z_step = z_score_statistics(wigs, half_width_peak=half_width_peak,
         half_width_step=half_width_step, threshold=threshold, gap_peak=gap_peak, gap_step=gap_step)
 
     z_peak[z_peak < 1] = 1
@@ -139,24 +199,3 @@ if __name__ == '__main__':
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_starts_peak{label}.png'))
         util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, fit=end_peak[-end:-start],
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_ends_peak{label}.png'))
-
-    # Explore data for an example region
-    # combined = z_peak * z_step
-    # combined1 = z_peak[0, :] * z_step[2, :]
-    # combined2 = z_peak[2, :] * z_step[0, :]
-    # z_peak[z_peak < 1] = 1
-    # z_step[z_step < 1] = 1
-    # combined[combined < 1] = 1
-    # combined1[combined1 < 1] = 1
-    # combined2[combined2 < 1] = 1
-    # start = 1
-    # end = 6000
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=z_peak[0, start:end], path=os.path.join(util.OUTPUT_DIR, '{}_peak0.png'.format(name)))
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=z_peak[2, start:end], path=os.path.join(util.OUTPUT_DIR, '{}_peak2.png'.format(name)))
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=z_step[0, start:end], path=os.path.join(util.OUTPUT_DIR, '{}_step0.png'.format(name)))
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=z_step[2, start:end], path=os.path.join(util.OUTPUT_DIR, '{}_step2.png'.format(name)))
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=combined[0, start:end], path=os.path.join(util.OUTPUT_DIR, '{}_z0.png'.format(name)))
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=combined[2, start:end], path=os.path.join(util.OUTPUT_DIR, '{}_z2.png'.format(name)))
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=combined1[start:end], path=os.path.join(util.OUTPUT_DIR, '{}_combined1.png'.format(name)))
-    # util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=combined2[start:end], path=os.path.join(util.OUTPUT_DIR, '{}_combined2.png'.format(name)))
-    import ipdb; ipdb.set_trace()
