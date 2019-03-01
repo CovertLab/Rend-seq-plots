@@ -139,7 +139,7 @@ def load_genome(path=None):
 
     return genes[sort_idx], locus_tags[sort_idx], starts[sort_idx], ends[sort_idx]
 
-def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels=None, path=None):
+def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels=None, threshold=5, path=None):
     '''
     Plots the reads of the 3' and 5' data on the given strand.  Also shows any
     genes that start or finish within the specified region.
@@ -155,6 +155,7 @@ def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels
         scores (ndarray[float]): statistic scores for each position in the region
             to be plotted, dims (n scores x region length), if None, only reads are plotted
         score_labels (list[str]): label for each score given, if None, no labels shown
+        threshold (float): threshold level to indicate on plots
         path (str): path to save image, if None, just displays image to screen
     '''
 
@@ -224,6 +225,7 @@ def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels
             if score_labels is not None:
                 plt.ylabel(score_labels[i])
             plot_genes(plt, genes, starts, ends)
+            plt.axhline(np.log(threshold), color='r', linestyle='--')
 
     plt.xlabel('Genome Location')
 
