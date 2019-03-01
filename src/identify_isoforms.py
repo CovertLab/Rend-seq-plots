@@ -95,7 +95,7 @@ def z_step_score(wigs, half_width, gap, threshold):
         right_std = np.sqrt(np.convolve(strand2, right_conv, 'same') - right_average**2)
         left_std = np.sqrt(np.convolve(strand2, left_conv, 'same') - left_average**2)
         positive_samples = (right_average > threshold) | (left_average > threshold)
-        z_step[i, :] = np.abs(positive_samples * (right_average - left_average) / np.sqrt(right_std + left_std + ~positive_samples))
+        z_step[i, :] = positive_samples * (right_average - left_average) / np.sqrt(right_std + left_std + ~positive_samples)
 
     return z_step
 
@@ -178,7 +178,10 @@ if __name__ == '__main__':
     z_step = z_step_score(total_reads, half_width_step, gap_step, threshold)
 
     z_peak[z_peak < 1] = 1
-    z_step[z_step < 0.1] = 0.1
+    z_step_neg = -z_step
+    z_step_pos = z_step
+    z_step_neg[z_step_neg < 0.1] = 0.1
+    z_step_pos[z_step_pos < 0.1] = 0.1
 
     # Load genome info
     genes, locus, all_starts, all_ends = util.load_genome()
@@ -198,10 +201,11 @@ if __name__ == '__main__':
     print('Plotting forward regions...')
     start_peak = z_peak[2, :]
     end_peak = z_peak[0, :]
-    step = z_step[0, :]
+    start_step = z_step_neg[0, :]
+    end_step = z_step_pos[0, :]
+    labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
     for i, (start, end) in enumerate(zip(real_starts, real_ends)):
-        scores = np.vstack((start_peak[start:end], end_peak[start:end], step[start:end]))
-        labels = ['z peak (start)', 'z peak (end)', 'z step']
+        scores = np.vstack((start_peak[start:end], end_peak[start:end], start_step[start:end], end_step[start:end]))
         util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{label}.png'))
 
@@ -220,9 +224,10 @@ if __name__ == '__main__':
     print('Plotting reverse regions...')
     start_peak = z_peak[3, ::-1]
     end_peak = z_peak[1, ::-1]
-    step = z_step[1, ::-1]
+    start_step = z_step_pos[1, ::-1]
+    end_step = z_step_neg[1, ::-1]
+    labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
     for i, (start, end) in enumerate(zip(real_starts[::-1], real_ends[::-1])):
-        scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], step[-end:-start]))
-        labels = ['z peak (start)', 'z peak (end)', 'z step']
+        scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], start_step[-end:-start], end_step[-end:-start]))
         util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{label}.png'))
