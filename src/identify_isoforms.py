@@ -151,7 +151,7 @@ def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
 
     return region_starts, region_ends
 
-def identify_transcription_units(starts, ends, start_score, end_score, threshold=5, rev=False):
+def identify_tu_locations(starts, ends, start_score, end_score, threshold=5, rev=False):
     '''
     Identifies transcription units from scores.
 
@@ -224,6 +224,37 @@ def identify_transcription_units(starts, ends, start_score, end_score, threshold
 
     return all_starts, all_ends
 
+def identify_tu_genes(tu_starts, tu_ends, genes, gene_starts, gene_ends):
+    '''
+    Identifies genes that are in a transcription unit together.
+
+    Args:
+        tu_starts (list[list[int]]): start position of each transcription unit for
+            each gene region
+        tu_ends (list[list[int]]): end position of each transcription unit for
+            each gene region
+        genes (ndarray[str]): gene names
+        gene_starts (ndarray[int]): genome position of start of gene
+        gene_ends (ndarray[int]): genome position of end of gene
+
+    Returns:
+        list[set[str]]: set of all unique transcription units in each gene region
+            with genes in the same transcription unit separated by :
+    '''
+
+    tu_genes = []
+
+    for starts, ends in zip(tu_starts, tu_ends):
+        tus = set()
+        for start, end in zip(starts, ends):
+            tu = genes[(gene_starts >= start) & (gene_starts <= end) & (gene_ends >= start) & (gene_ends <= end)]
+            if len(tu) > 0:
+                tus.add(':'.join(tu))
+
+        tu_genes.append(tus)
+
+    return tu_genes
+
 
 if __name__ == '__main__':
     # Parameters for analysis
@@ -275,7 +306,8 @@ if __name__ == '__main__':
     end_step = z_step_pos[0, :]
     start_comb = start_peak * start_step
     end_comb = end_peak * end_step
-    tu_starts, tu_ends = identify_transcription_units(region_starts, region_ends, start_comb, end_comb)
+    tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb)
+    tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)
 
     # Plot forward strand regions
     print('Plotting forward regions...')
@@ -301,7 +333,8 @@ if __name__ == '__main__':
     end_step = z_step_neg[1, ::-1]
     start_comb = start_peak * start_step
     end_comb = end_peak * end_step
-    tu_starts, tu_ends = identify_transcription_units(region_starts, region_ends, start_comb[::-1], end_comb[::-1], rev=True)
+    tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb[::-1], end_comb[::-1], rev=True)
+    tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)[::-1]
 
     # Plot reverse strand regions
     print('Plotting reverse regions...')
