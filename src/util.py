@@ -234,3 +234,85 @@ def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels
     else:
         plt.savefig(path)
     plt.close('all')
+
+def plot_tus(start, end, genes, starts, ends, reads, tus, path=None):
+    '''
+    Plots the reads of the 3' and 5' data on the given strand and the transcription
+    units identified.
+
+    Args:
+        start (int): start position in the genome
+        end (int): end position in the genome
+        genes (ndarray[str]): names of genes
+        starts (ndarray[int]): start position for each gene
+        ends (ndarray[int]): end position for each gene
+        reads (ndarray[float]): reads for each strand at each position
+            dims (strands x genome length)
+        tus (list[set[str]]): set of all unique transcription units in each gene region
+            with genes in the same transcription unit separated by :
+        path (str): path to save image, if None, just displays image to screen
+    '''
+
+    def plot_genes(plt, genes, starts, ends):
+        gene_line = -1.5
+        gene_offset = 0.1
+        for gene, s, e in zip(genes, starts, ends):
+            plt.plot([s, e], [gene_line, gene_line], 'k')
+            plt.plot([s, s], [gene_line - gene_offset, gene_line + gene_offset], 'k')
+            plt.plot([e, e], [gene_line - gene_offset, gene_line + gene_offset], 'k')
+            plt.text((s + e) / 2, gene_line - 3 * gene_offset, gene, ha='center', fontsize=6)
+        plt.xlim([loc[0], loc[-1]])
+
+    # Set forward (0) or reverse (1) strand to correspond to data order
+    if start < 0:
+        strand = 1
+    else:
+        strand = 0
+
+    # Identify genes in region and get reads
+    # Need to subtract 1 from index for reads since starts at 0 not 1 like genome position
+    if strand:
+        # Reverse strand needs indices adjusted
+        mask = (-ends > -start) & (-starts < -end)
+        loc = np.arange(end, start)
+        with np.errstate(divide='ignore'):
+            three_prime = np.log(reads[strand, int(-start-1):int(-end-1)][::-1])
+            five_prime = np.log(reads[2+strand, int(-start-1):int(-end-1)][::-1])
+    else:
+        # Forward strand
+        mask = (ends > start) & (starts < end)
+        loc = np.arange(start, end)
+        with np.errstate(divide='ignore'):
+            three_prime = np.log(reads[strand, int(start-1):int(end-1)])
+            five_prime = np.log(reads[2+strand, int(start-1):int(end-1)])
+
+    genes = genes[mask]
+    starts = starts[mask]
+    ends = ends[mask]
+
+    # Adjust for 0 reads from log
+    three_prime[three_prime < 0] = -1
+    five_prime[five_prime < 0] = -1
+
+    plt.figure()
+    plt.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
+    plot_genes(plt, genes, starts, ends)
+
+    tu_start = -2
+    tu_step = 0.2
+    for i, tu in enumerate(tus):
+        idx = np.array([np.where(genes == g)[0][0] for g in tu.split(':')])
+        start = np.min(starts[idx])
+        end = np.max(ends[idx])
+
+        pos = tu_start - tu_step * i
+        plt.plot([start, end], [pos, pos], 'r', linewidth=2)
+
+    plt.ylabel('Reads (log)')
+    plt.xlabel('Genome Location')
+
+    if path is None:
+        plt.show()
+    else:
+        plt.savefig(path)
+    plt.close('all')

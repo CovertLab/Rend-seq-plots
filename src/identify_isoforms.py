@@ -316,6 +316,8 @@ if __name__ == '__main__':
         scores = np.vstack((start_peak[start:end], end_peak[start:end], start_step[start:end], end_step[start:end], start_comb[start:end], end_comb[start:end]))
         util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{label}.png'))
+        util.plot_tus(start, end, genes, all_starts, all_ends, wigs, tu_genes[i],
+            path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_tus{label}.png'))
 
     # Identify separate regions of genes for the reverse strand
     print('Identifying reverse regions...')
@@ -343,3 +345,5 @@ if __name__ == '__main__':
         scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], start_step[-end:-start], end_step[-end:-start], start_comb[-end:-start], end_comb[-end:-start]))
         util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{label}.png'))
+        util.plot_tus(-start, -end, genes, all_starts, all_ends, wigs, tu_genes[i],
+            path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_tus{label}.png'))
