@@ -139,7 +139,7 @@ def load_genome(path=None):
 
     return genes[sort_idx], locus_tags[sort_idx], starts[sort_idx], ends[sort_idx]
 
-def plot_reads(start, end, genes, starts, ends, reads, fit=None, path=None):
+def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels=None, path=None):
     '''
     Plots the reads of the 3' and 5' data on the given strand.  Also shows any
     genes that start or finish within the specified region.
@@ -147,13 +147,26 @@ def plot_reads(start, end, genes, starts, ends, reads, fit=None, path=None):
     Args:
         start (int): start position in the genome
         end (int): end position in the genome
-        genes (array of str): names of genes
-        starts (array of int): start position for each gene
-        ends (array of int): end position for each gene
-        reads (2D array of float): reads for each strand at each position
+        genes (ndarray[str]): names of genes
+        starts (ndarray[int]): start position for each gene
+        ends (ndarray[int]): end position for each gene
+        reads (ndarray[float]): reads for each strand at each position
             dims (strands x genome length)
+        scores (ndarray[float]): statistic scores for each position in the region
+            to be plotted, dims (n scores x region length), if None, only reads are plotted
+        score_labels (list[str]): label for each score given, if None, no labels shown
         path (str): path to save image, if None, just displays image to screen
     '''
+
+    def plot_genes(plt, genes, starts, ends):
+        gene_line = -1.5
+        gene_offset = 0.1
+        for gene, s, e in zip(genes, starts, ends):
+            plt.plot([s, e], [gene_line, gene_line], 'k')
+            plt.plot([s, s], [gene_line - gene_offset, gene_line + gene_offset], 'k')
+            plt.plot([e, e], [gene_line - gene_offset, gene_line + gene_offset], 'k')
+            plt.text((s + e) / 2, gene_line - 3 * gene_offset, gene, ha='center', fontsize=6)
+        plt.xlim([loc[0], loc[-1]])
 
     # Set forward (0) or reverse (1) strand to correspond to data order
     if start < 0:
@@ -186,24 +199,33 @@ def plot_reads(start, end, genes, starts, ends, reads, fit=None, path=None):
     three_prime[three_prime < 0] = -1
     five_prime[five_prime < 0] = -1
 
-    plt.figure()
-    plt.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
+    if scores is not None:
+        n_scores = scores.shape[0]
+    else:
+        n_scores = 0
+    n_plots = n_scores + 1
 
-    if fit is not None:
-        with np.errstate(divide='ignore'):
-            plt.step(loc, np.log(fit), color='k')
+    plt.figure(figsize=(8.5, 4*n_plots))
 
-    gene_line = -1.5
-    gene_offset = 0.1
-    for gene, s, e in zip(genes, starts, ends):
-        plt.plot([s, e], [gene_line, gene_line], 'k')
-        plt.plot([s, s], [gene_line-gene_offset, gene_line+gene_offset], 'k')
-        plt.plot([e, e], [gene_line-gene_offset, gene_line+gene_offset], 'k')
-        plt.text((s+e)/2, gene_line-3*gene_offset, gene, ha='center', fontsize=6)
-    plt.xlim([loc[0], loc[-1]])
+    # Plot only reads
+    ax = plt.subplot(n_plots, 1, 1)
+    ax.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
+    plot_genes(plt, genes, starts, ends)
+    plt.ylabel('Reads (log)')
+
+    # Plot each score on a separate subplot
+    if scores is not None:
+        for i, score in enumerate(scores):
+            ax = plt.subplot(n_plots, 1, i+2)
+            ax.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
+            with np.errstate(divide='ignore'):
+                ax.step(loc, np.log(score), color='k')
+
+            if score_labels is not None:
+                plt.ylabel(score_labels[i])
+            plot_genes(plt, genes, starts, ends)
 
     plt.xlabel('Genome Location')
-    plt.ylabel('Reads (log)')
 
     if path is None:
         plt.show()

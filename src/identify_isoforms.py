@@ -168,14 +168,14 @@ if __name__ == '__main__':
     # Plot forward strand regions
     print('Plotting forward regions...')
     start_peak = z_peak[2, :]
+    start_step = z_step[2, :]
     end_peak = z_peak[0, :]
+    end_step = z_step[0, :]
     for i, (start, end) in enumerate(zip(real_starts, real_ends)):
-        util.plot_reads(start, end, genes, all_starts, all_ends, wigs,
-            path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}.png'))
-        util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=start_peak[start:end],
-            path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_starts_peak{label}.png'))
-        util.plot_reads(start, end, genes, all_starts, all_ends, wigs, fit=end_peak[start:end],
-            path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_ends_peak{label}.png'))
+        scores = np.vstack((start_peak[start:end], end_peak[start:end], start_step[start:end], end_step[start:end]))
+        labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
+        util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
+            path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{label}.png'))
 
     # Identify separate regions of genes for the reverse strand
     print('Identifying reverse regions...')
@@ -191,11 +191,11 @@ if __name__ == '__main__':
     # Plot reverse strand regions
     print('Plotting reverse regions...')
     start_peak = z_peak[3, ::-1]
+    start_step = z_step[3, ::-1]
     end_peak = z_peak[1, ::-1]
+    end_step = z_step[1, ::-1]
     for i, (start, end) in enumerate(zip(real_starts[::-1], real_ends[::-1])):
-        util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs,
-            path=os.path.join(util.OUTPUT_DIR, f'rev_{i}.png'))
-        util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, fit=start_peak[-end:-start],
-            path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_starts_peak{label}.png'))
-        util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, fit=end_peak[-end:-start],
-            path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_ends_peak{label}.png'))
+        scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], start_step[-end:-start], end_step[-end:-start]))
+        labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
+        util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
+            path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{label}.png'))
