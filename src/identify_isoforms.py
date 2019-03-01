@@ -36,7 +36,8 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
 
     dims = wigs.shape
 
-    z_peak = np.ones(dims)
+    z_peak_sum = np.zeros(dims)
+    z_peak_prod = np.ones(dims)
     z_step = np.zeros(dims)
 
     window_peak = half_width_peak * 2 + 1
@@ -62,8 +63,9 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
             average = np.convolve(strand, conv, 'same')
             std = np.sqrt(np.convolve(strand2, conv, 'same') - average**2)
             value = (average > threshold) * (strand - average) / (std + (average == 0))
+            z_peak_sum[i, :] += value
             value[value < 0] = 0
-            z_peak[i, :] *= value
+            z_peak_prod[i, :] *= value
 
         # Calculate step z score
         right_average = np.convolve(strand, right_conv_step, 'same')
@@ -72,6 +74,8 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
         left_std = np.sqrt(np.convolve(strand2, left_conv_step, 'same') - left_average**2)
         positive_samples = (right_average > threshold) | (left_average > threshold)
         z_step[i, :] = np.abs(positive_samples * (right_average - left_average) / np.sqrt(right_std + left_std + ~positive_samples))
+
+    z_peak = 2 * z_peak_prod / (z_peak_sum + (z_peak_sum == 0))  # harmonic mean
 
     return z_peak, z_step
 
@@ -151,7 +155,7 @@ if __name__ == '__main__':
         half_width_step=half_width_step, threshold=threshold, gap_peak=gap_peak, gap_step=gap_step)
 
     z_peak[z_peak < 1] = 1
-    z_step[z_step < 1] = 1
+    z_step[z_step < 0.1] = 0.1
 
     # Load genome info
     genes, locus, all_starts, all_ends = util.load_genome()
