@@ -224,5 +224,5 @@ if __name__ == '__main__':
     for i, (start, end) in enumerate(zip(real_starts[::-1], real_ends[::-1])):
         scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], step[-end:-start]))
         labels = ['z peak (start)', 'z peak (end)', 'z step']
-        util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
+        util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{label}.png'))
