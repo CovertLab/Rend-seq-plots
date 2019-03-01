@@ -61,7 +61,9 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
         for conv in [right_conv_peak, left_conv_peak]:
             average = np.convolve(strand, conv, 'same')
             std = np.sqrt(np.convolve(strand2, conv, 'same') - average**2)
-            z_peak[i, :] *= (average > threshold) * (strand - average) / (std + (average == 0))
+            value = (average > threshold) * (strand - average) / (std + (average == 0))
+            value[value < 0] = 0
+            z_peak[i, :] *= value
 
         # Calculate step z score
         right_average = np.convolve(strand, right_conv_step, 'same')
