@@ -13,6 +13,59 @@ import util
 label = '_0.05'
 
 
+def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
+    '''
+    Identify transcription unit region starts and ends based on no reads between regions.
+
+    Args:
+        starts (ndarray[int]): annotated gene start locations
+        ends (ndarray[int]): annotated gene end locations
+        no_reads (ndarray[int]): locations of no reads
+        gene_pad (int): padding of base pairs to include before or after a gene
+        ma_pad (int): pad around central point used for moving average
+
+    Returns:
+        real_starts (list[int]): location of starts of regions with reads (transcription units)
+        real_ends (list[int]): location of ends of regions with reads (transcription units)
+    '''
+
+    real_starts = []
+    real_ends = []
+
+    n_genes = len(starts)
+    n_no_reads = len(no_reads)
+    gene = 0
+    pos = 0
+
+    while gene < n_genes:
+        if gene == 0 and starts[gene] < no_reads[pos] - gene_pad:
+            # Start at beginning if first gene starts before first period of no reads
+            start = 1
+        else:
+            # Start at last point of no reads before gene otherwise
+            start = no_reads[no_reads < starts[gene] - gene_pad][-1]
+            pos = np.where(no_reads == start)[0][0]
+
+        real_starts.append(max(0, start - gene_pad) + 1)
+
+        while gene < n_genes - 1 and pos < n_no_reads - 1:
+            if ends[gene] + gene_pad > no_reads[pos] - ma_pad:
+                pos += 1
+            elif no_reads[pos] + ma_pad > starts[gene + 1] - gene_pad:
+                gene += 1
+            else:
+                real_ends.append(min(util.GENOME_SIZE, no_reads[pos] + gene_pad + 1))
+                break
+
+        gene += 1
+
+    ## Add the end of the genome as the final end if not added already
+    if len(real_starts) != len(real_ends):
+        real_ends.append(util.GENOME_SIZE)
+
+    return real_starts, real_ends
+
+
 if __name__ == '__main__':
     # Parameters for analysis
     ## z statistics
@@ -49,39 +102,8 @@ if __name__ == '__main__':
 
     starts = all_starts[all_starts > 0]
     ends = all_ends[all_ends > 0]
-    n_genes = len(starts)
-    n_no_reads = len(no_reads)
-    gene = 0
-    pos = 0
 
-    ## Identify transcription unit region starts and ends based on no reads between regions
-    real_starts = []
-    real_ends = []
-    while gene < n_genes:
-        if gene == 0 and starts[gene] < no_reads[pos] - gene_pad:
-            # Start at beginning if first gene starts before first period of no reads
-            start = 1
-        else:
-            # Start at last point of no reads before gene otherwise
-            start = no_reads[no_reads < starts[gene] - gene_pad][-1]
-            pos = np.where(no_reads == start)[0][0]
-
-        real_starts.append(max(0, start - gene_pad) + 1)
-
-        while gene < n_genes - 1 and pos < n_no_reads - 1:
-            if ends[gene] + gene_pad > no_reads[pos] - ma_pad:
-                pos += 1
-            elif no_reads[pos] + ma_pad > starts[gene + 1] - gene_pad:
-                gene += 1
-            else:
-                real_ends.append(min(util.GENOME_SIZE, no_reads[pos] + gene_pad + 1))
-                break
-
-        gene += 1
-
-    ## Add the end of the genome as the final end if not added already
-    if len(real_starts) != len(real_ends):
-        real_ends.append(util.GENOME_SIZE)
+    real_starts, real_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
 
     # Plot forward strand regions
     print('Plotting forward regions...')
@@ -103,39 +125,8 @@ if __name__ == '__main__':
 
     starts = -all_starts[all_starts < 0][::-1]
     ends = -all_ends[all_ends < 0][::-1]
-    n_genes = len(starts)
-    n_no_reads = len(no_reads)
-    gene = 0
-    pos = 0
 
-    ## Identify transcription unit region starts and ends based on no reads between regions
-    real_starts = []
-    real_ends = []
-    while gene < n_genes:
-        if gene == 0 and starts[gene] < no_reads[pos] - gene_pad:
-            # Start at beginning if first gene starts before first period of no reads
-            start = 1
-        else:
-            # Start at last point of no reads before gene otherwise
-            start = no_reads[no_reads < starts[gene] - gene_pad][-1]
-            pos = np.where(no_reads == start)[0][0]
-
-        real_starts.append(max(0, start - gene_pad) + 1)
-
-        while gene < n_genes - 1 and pos < n_no_reads - 1:
-            if ends[gene] + gene_pad > no_reads[pos] - ma_pad:
-                pos += 1
-            elif no_reads[pos] + ma_pad > starts[gene + 1] - gene_pad:
-                gene += 1
-            else:
-                real_ends.append(min(util.GENOME_SIZE, no_reads[pos] + gene_pad + 1))
-                break
-
-        gene += 1
-
-    ## Add the end of the genome as the final end if not added already
-    if len(real_starts) != len(real_ends):
-        real_ends.append(util.GENOME_SIZE)
+    real_starts, real_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
 
     # Plot reverse strand regions
     print('Plotting reverse regions...')
