@@ -10,56 +10,43 @@ import numpy as np
 import util
 
 
-label = '_0.05'
+label = '_0.01'
 
 
-def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold=0.25, gap_peak=2, gap_step=3):
+def z_peak_score(wigs, half_width, gap, threshold):
     '''
-    Calculates peak and step z scores for the wig data.
+    Calculates peak z scores for the wig data.
     Based on get_data_compute_statistic_20180130.m
 
     Args:
         wigs (ndarray[float]): 2D array, dims: (n strands, genome size), for reads on each strand
-        half_width_peak (int): half width of window for averaging for peak z score
-        half_width_step (int): half width of window for averaging for step z score
+        half_width (int): half width of window for averaging for peak z score
+        gap (int): gap left out (both sides) of central position for peak z score
         threshold (float): average read density (read/nt) threshold for consideration
-        gap_peak (int): gap left out (both sides) of central position for peak z score
-        gap_step (int): gap left out (both sides) of central position for step z score
 
     Returns:
         z_peak (ndarray[float]): 2D array, dims: (n strands, genome size) peak z score
-        z_step (ndarray[float]): 2D array, dims: (n strands, genome size) step z score
 
     TODO:
         Add other filter options as in filter_generator_20180130.m?
     '''
 
     dims = wigs.shape
-
     z_peak_sum = np.zeros(dims)
     z_peak_prod = np.ones(dims)
-    z_step = np.zeros(dims)
 
-    window_peak = half_width_peak * 2 + 1
-    window_step = (half_width_step + gap_step) * 2 + 1
+    window = half_width * 2 + 1
 
-    # Convolution vectors for peak calculation
-    right_conv_peak = np.zeros(window_peak)
-    left_conv_peak = np.zeros(window_peak)
-    right_conv_peak[half_width_peak+1:] = 1 / half_width_peak
-    left_conv_peak[:half_width_peak] = 1 / half_width_peak
-
-    # Convolution vectors for step calculation
-    right_conv_step = np.zeros(window_step)
-    left_conv_step = np.zeros(window_step)
-    right_conv_step[half_width_step+2*gap_step+1:] = 1 / half_width_step
-    left_conv_step[:half_width_step] = 1 / half_width_step
+    # Convolution vectors
+    right_conv = np.zeros(window)
+    left_conv = np.zeros(window)
+    right_conv[half_width+1:] = 1 / half_width
+    left_conv[:half_width] = 1 / half_width
 
     for i, strand in enumerate(wigs):
         strand2 = strand**2
 
-        # Calculate peak z score
-        for conv in [right_conv_peak, left_conv_peak]:
+        for conv in [right_conv, left_conv]:
             average = np.convolve(strand, conv, 'same')
             std = np.sqrt(np.convolve(strand2, conv, 'same') - average**2)
             value = (average > threshold) * (strand - average) / (std + (average == 0))
@@ -67,17 +54,50 @@ def z_score_statistics(wigs, half_width_peak=100, half_width_step=100, threshold
             value[value < 0] = 0
             z_peak_prod[i, :] *= value
 
-        # Calculate step z score
-        right_average = np.convolve(strand, right_conv_step, 'same')
-        left_average = np.convolve(strand, left_conv_step, 'same')
-        right_std = np.sqrt(np.convolve(strand2, right_conv_step, 'same') - right_average**2)
-        left_std = np.sqrt(np.convolve(strand2, left_conv_step, 'same') - left_average**2)
+    z_peak = 2 * z_peak_prod / (z_peak_sum + (z_peak_sum == 0))  # harmonic mean
+
+    return z_peak
+
+def z_step_score(wigs, half_width, gap, threshold):
+    '''
+    Calculates step z scores for the wig data.
+    Based on get_data_compute_statistic_20180130.m
+
+    Args:
+        wigs (ndarray[float]): 2D array, dims: (n strands, genome size), for reads on each strand
+        half_width (int): half width of window for averaging for step z score
+        gap (int): gap left out (both sides) of central position for step z score
+        threshold (float): average read density (read/nt) threshold for consideration
+
+    Returns:
+        z_step (ndarray[float]): 2D array, dims: (n strands, genome size) step z score
+
+    TODO:
+        Add other filter options as in filter_generator_20180130.m?
+    '''
+
+    dims = wigs.shape
+    z_step = np.zeros(dims)
+
+    window = (half_width + gap) * 2 + 1
+
+    # Convolution vectors
+    right_conv = np.zeros(window)
+    left_conv = np.zeros(window)
+    right_conv[half_width+2*gap+1:] = 1 / half_width
+    left_conv[:half_width] = 1 / half_width
+
+    for i, strand in enumerate(wigs):
+        strand2 = strand**2
+
+        right_average = np.convolve(strand, right_conv, 'same')
+        left_average = np.convolve(strand, left_conv, 'same')
+        right_std = np.sqrt(np.convolve(strand2, right_conv, 'same') - right_average**2)
+        left_std = np.sqrt(np.convolve(strand2, left_conv, 'same') - left_average**2)
         positive_samples = (right_average > threshold) | (left_average > threshold)
         z_step[i, :] = np.abs(positive_samples * (right_average - left_average) / np.sqrt(right_std + left_std + ~positive_samples))
 
-    z_peak = 2 * z_peak_prod / (z_peak_sum + (z_peak_sum == 0))  # harmonic mean
-
-    return z_peak, z_step
+    return z_step
 
 def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
     '''
@@ -137,7 +157,7 @@ if __name__ == '__main__':
     ## z statistics
     half_width_peak = 100
     half_width_step = 100
-    threshold = 0.05
+    threshold = 0.01
     gap_peak = 2  # not used unless filter is changed in z_score_statistics
     gap_step = 3
 
@@ -150,9 +170,12 @@ if __name__ == '__main__':
 
     # Calculate Statistics
     wigs = util.load_wigs()
+    total_reads = np.zeros((2, util.GENOME_SIZE))
+    total_reads[0, :] = wigs[0, :] + wigs[2, :]
+    total_reads[1, :] = wigs[1, :] + wigs[3, :]
     print('Calculating z scores...')
-    z_peak, z_step = z_score_statistics(wigs, half_width_peak=half_width_peak,
-        half_width_step=half_width_step, threshold=threshold, gap_peak=gap_peak, gap_step=gap_step)
+    z_peak = z_peak_score(wigs, half_width_peak, gap_peak, threshold)
+    z_step = z_step_score(total_reads, half_width_step, gap_step, threshold)
 
     z_peak[z_peak < 1] = 1
     z_step[z_step < 0.1] = 0.1
@@ -174,12 +197,11 @@ if __name__ == '__main__':
     # Plot forward strand regions
     print('Plotting forward regions...')
     start_peak = z_peak[2, :]
-    start_step = z_step[2, :]
     end_peak = z_peak[0, :]
-    end_step = z_step[0, :]
+    step = z_step[0, :]
     for i, (start, end) in enumerate(zip(real_starts, real_ends)):
-        scores = np.vstack((start_peak[start:end], end_peak[start:end], start_step[start:end], end_step[start:end]))
-        labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
+        scores = np.vstack((start_peak[start:end], end_peak[start:end], step[start:end]))
+        labels = ['z peak (start)', 'z peak (end)', 'z step']
         util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{label}.png'))
 
@@ -197,11 +219,10 @@ if __name__ == '__main__':
     # Plot reverse strand regions
     print('Plotting reverse regions...')
     start_peak = z_peak[3, ::-1]
-    start_step = z_step[3, ::-1]
     end_peak = z_peak[1, ::-1]
-    end_step = z_step[1, ::-1]
+    step = z_step[1, ::-1]
     for i, (start, end) in enumerate(zip(real_starts[::-1], real_ends[::-1])):
-        scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], start_step[-end:-start], end_step[-end:-start]))
-        labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)']
+        scores = np.vstack((start_peak[-end:-start], end_peak[-end:-start], step[-end:-start]))
+        labels = ['z peak (start)', 'z peak (end)', 'z step']
         util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, score_labels=labels,
             path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{label}.png'))
