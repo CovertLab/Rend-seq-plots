@@ -217,6 +217,7 @@ def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels
     # Plot each score on a separate subplot
     if scores is not None:
         for i, score in enumerate(scores):
+            score[score < 0.1] = 0.1
             ax = plt.subplot(n_plots, 1, i+2)
             ax.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
             with np.errstate(divide='ignore'):

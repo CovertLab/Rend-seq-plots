@@ -313,11 +313,10 @@ if __name__ == '__main__':
     z_peak = z_peak_score(wigs, half_width_peak, gap_peak, threshold)
     z_step = z_step_score(total_reads, half_width_step, gap_step, threshold)
 
-    z_peak[z_peak < 1] = 1
     z_step_neg = -z_step
     z_step_pos = z_step
-    z_step_neg[z_step_neg < 0.1] = 0.1
-    z_step_pos[z_step_pos < 0.1] = 0.1
+    z_step_neg[z_step_neg < 0] = 0
+    z_step_pos[z_step_pos < 0] = 0
 
     # Load genome info
     genes, locus, all_starts, all_ends = util.load_genome()
