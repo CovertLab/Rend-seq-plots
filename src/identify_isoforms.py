@@ -283,6 +283,8 @@ def parse_args():
         default='',
         type=str,
         help='Label to append to plot outputs')
+    parser.add_argument('-g', '--gene',
+        help='Search for region and TUs with gene (or start of gene)')
 
     return parser.parse_args()
 
@@ -342,6 +344,20 @@ if __name__ == '__main__':
         tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb)
         tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)
 
+        # Find regions and TUs for a specified gene or set of genes
+        if args.gene:
+            for i, tus in enumerate(tu_genes):
+                skip = False
+                for tu in tus:
+                    for g in tu.split(':'):
+                        if g.startswith(args.gene):
+                            print(i, tus)
+                            skip = True
+                            break
+
+                    if skip:
+                        break
+
         # Plot forward strand regions
         if args.plot:
             print('Plotting forward regions...')
@@ -377,6 +393,20 @@ if __name__ == '__main__':
         end_comb = end_peak * end_step
         tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb[::-1], end_comb[::-1], rev=True)
         tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)[::-1]
+
+        # Find regions and TUs for a specified gene or set of genes
+        if args.gene:
+            for i, tus in enumerate(tu_genes):
+                skip = False
+                for tu in tus:
+                    for g in tu.split(':'):
+                        if g.startswith(args.gene):
+                            print(i, tus)
+                            skip = True
+                            break
+
+                    if skip:
+                        break
 
         # Plot reverse strand regions
         if args.plot:
