@@ -306,7 +306,7 @@ def plot_tus(start, end, genes, starts, ends, reads, tus, path=None):
 
     tu_start = -2
     tu_step = 0.2
-    for i, tu in enumerate(tus):
+    for i, tu in enumerate(sorted(tus)):
         idx = np.array([np.where(genes == g)[0][0] for g in tu.split(':')])
         start = np.min(starts[idx])
         end = np.max(ends[idx])

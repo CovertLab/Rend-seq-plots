@@ -360,6 +360,8 @@ if __name__ == '__main__':
     ma_min_reads = args.ma_reads
     gene_pad = args.gene_pad
 
+    score_threshold = args.score_threshold
+
     # Calculate Statistics
     wigs = util.load_wigs(wig_index=args.wig)
     total_reads = np.zeros((2, util.GENOME_SIZE))
@@ -394,7 +396,7 @@ if __name__ == '__main__':
         end_step = z_step_pos[0, :]
         start_comb = start_peak * start_step
         end_comb = end_peak * end_step
-        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb, args.score_threshold)
+        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb, score_threshold)
         tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)
 
         # Find regions and TUs for a specified gene or set of genes
@@ -427,7 +429,7 @@ if __name__ == '__main__':
                         start_step[start:end], end_step[start:end],
                         start_comb[start:end], end_comb[start:end],
                         ))
-                    util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores,
+                    util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, threshold=score_threshold,
                         score_labels=labels, path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{args.label}.png'))
 
     # Identify separate regions of genes for the reverse strand
@@ -447,7 +449,7 @@ if __name__ == '__main__':
         end_step = z_step_neg[1, ::-1]
         start_comb = start_peak * start_step
         end_comb = end_peak * end_step
-        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb[::-1], end_comb[::-1], args.score_threshold, rev=True)
+        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb[::-1], end_comb[::-1], score_threshold, rev=True)
         tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)[::-1]
 
         # Find regions and TUs for a specified gene or set of genes
@@ -480,5 +482,5 @@ if __name__ == '__main__':
                         start_step[-end:-start], end_step[-end:-start],
                         start_comb[-end:-start], end_comb[-end:-start],
                         ))
-                    util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores,
+                    util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, threshold=score_threshold,
                         score_labels=labels, path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{args.label}.png'))
