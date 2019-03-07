@@ -285,6 +285,10 @@ def parse_args():
         help='Label to append to plot outputs')
     parser.add_argument('-g', '--gene',
         help='Search for region and TUs with gene (or start of gene)')
+    parser.add_argument('-w', '--wig',
+        type=int,
+        default=1,
+        help=f'Index of wig type to use (0-{len(util.WIG_FILE_TEMPLATES)-1}, default: 1)')
 
     return parser.parse_args()
 
@@ -308,7 +312,7 @@ if __name__ == '__main__':
     gene_pad = 100
 
     # Calculate Statistics
-    wigs = util.load_wigs()
+    wigs = util.load_wigs(wig_index=args.wig)
     total_reads = np.zeros((2, util.GENOME_SIZE))
     total_reads[0, :] = wigs[0, :] + wigs[2, :]
     total_reads[1, :] = wigs[1, :] + wigs[3, :]

@@ -19,8 +19,18 @@ if not os.path.exists(OUTPUT_DIR):
     os.mkdir(OUTPUT_DIR)
 
 # .wig files from Lalanne et al
-WIG_FILE_TEMPLATE = os.path.join(WIGS_DIR, 'GSM2971252_Escherichia_coli_WT_Rend_seq_5_exo_MOPS_comp_25s_frag_pooled_{}_no_shadow.wig')
-PROCESSED_WIG_FILE = os.path.join(DATA_DIR, 'GSM2971252_reads.npy')
+WIG_FILE_TEMPLATES = [
+    os.path.join(WIGS_DIR, 'GSM2500131_Escherichia_coli_WT_Rend_seq_MOPS_comp_25s_frag_pooled_{}_no_shadow.wig'),
+    os.path.join(WIGS_DIR, 'GSM2971252_Escherichia_coli_WT_Rend_seq_5_exo_MOPS_comp_25s_frag_pooled_{}_no_shadow.wig'),
+    os.path.join(WIGS_DIR, 'GSM2971253_Escherichia_coli_pnp_Rend_seq_MOPS_comp_25s_frag_{}.wig'),
+    os.path.join(WIGS_DIR, 'GSM2971254_Escherichia_coli_rnb_Rend_seq_MOPS_comp_25s_frag_{}.wig'),
+    ]
+PROCESSED_WIG_FILES = [
+    os.path.join(DATA_DIR, 'GSM2500131_reads.npy'),
+    os.path.join(DATA_DIR, 'GSM2971252_reads.npy'),
+    os.path.join(DATA_DIR, 'GSM2971253_reads.npy'),
+    os.path.join(DATA_DIR, 'GSM2971254_reads.npy'),
+    ]
 WIG_STRANDS = ['3f', '3r', '5f', '5r']
 
 # Genome information
@@ -28,40 +38,35 @@ GENOME_SIZE = 4639675
 ANNOTATION_FILE = os.path.join(GENOME_DIR, 'U00096.2.faa')
 
 
-def load_wigs(cached=None, wig_file=None, strands=None, genome_size=None):
+def load_wigs(wig_index=1, strands=None, genome_size=None, cached=True):
     '''
     Loads read data from .wig files
 
     Args:
-        cached (str): path to cached data, if None, defaults to PROCESSED_WIG_FILE.
-            If file exists, it will be read, otherwise data will be loaded from
-            the raw data and written to file.
-        wig_file (str): template for the wig files to be read (gets formatted for each strand),
-            if None, defaults to WIG_FILE_TEMPLATE
+        wig_index (int): index for wig template to use from WIG_FILE_TEMPLATES
         strands (list[str]): each strand name that gets inserted into the wig_file string
             (order determines order of first dimension of returned array), if None, defaults
             to WIG_STRANDS
         genome_size (int): base pair length of the genome, if None, defaults to GENOME_SIZE
+        cached (bool): if True, loads cached data if it exists
 
     Returns:
         ndarray[float]: 2D array, dims: (n strands, genome size), for reads on each strand
     '''
 
     # Check for cached results and return if exists
-    if cached is None:
-        cached = PROCESSED_WIG_FILE
-    if os.path.exists(cached):
+    cached_file = PROCESSED_WIG_FILES[wig_index]
+    if cached and os.path.exists(cached_file):
         print('Loaded cached read data')
-        return np.load(cached)
+        return np.load(cached_file)
 
     # Defaults in file for E. coli if none given
-    if wig_file is None:
-        wig_file = WIG_FILE_TEMPLATE
     if strands is None:
         strands = WIG_STRANDS
     if genome_size is None:
         genome_size = GENOME_SIZE
 
+    wig_file = WIG_FILE_TEMPLATES[wig_index]
     data = np.zeros((len(strands), genome_size))
     for i, strand in enumerate(strands):
         with open(wig_file.format(strand), 'r') as f:
@@ -80,7 +85,7 @@ def load_wigs(cached=None, wig_file=None, strands=None, genome_size=None):
 
             data[i, index] = reads
 
-    np.save(cached, data)
+    np.save(cached_file, data)
 
     return data
 
