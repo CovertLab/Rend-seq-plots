@@ -149,7 +149,7 @@ def identify_regions(starts, ends, no_reads, gene_pad, ma_pad):
 
     return region_starts, region_ends
 
-def identify_tu_locations(starts, ends, start_score, end_score, threshold=5, rev=False):
+def identify_tu_locations(starts, ends, start_score, end_score, threshold, rev=False):
     '''
     Identifies transcription units from scores.
 
@@ -290,26 +290,75 @@ def parse_args():
         default=1,
         help=f'Index of wig type to use (0-{len(util.WIG_FILE_TEMPLATES)-1}, default: 1)')
 
+    parser.add_argument('--region',
+        type=int,
+        help='Region to plot (negative will be on reverse strand)')
+
+    # Parameters
+    parser.add_argument('--width-peak',
+        type=int,
+        default=100,
+        help='Window width for peak z score calculation')
+    parser.add_argument('--width-step',
+        type=int,
+        default=100,
+        help='Window width for step z score calculation')
+    parser.add_argument('--gap-peak',
+        type=int,
+        default=2,
+        help='Gap from position excluded from peak z score calculations')
+    parser.add_argument('--gap-step',
+        type=int,
+        default=3,
+        help='Gap from position excluded from step z score calculations')
+    parser.add_argument('--read-threshold',
+        type=float,
+        default=0.01,
+        help='Threshold of average reads to include in z score calculations')
+    parser.add_argument('--ma-pad',
+        type=int,
+        default=5,
+        help='Moving average window size for determining regions')
+    parser.add_argument('--ma-reads',
+        type=float,
+        default=0.5,
+        help='Minimum reads from a moving average to divide a region')
+    parser.add_argument('--gene-pad',
+        type=int,
+        default=100,
+        help='Minimum number of positions from a gene to include in a region')
+    parser.add_argument('--score-threshold',
+        type=float,
+        default=5,
+        help='Threshold of score to identify start/termination')
+
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_args()
 
+    if args.region is not None:
+        if args.region >= 0:
+            args.rev = False
+        else:
+            args.region = -args.region
+            args.fwd = False
+
     # Parameters for analysis
     ## z statistics
-    half_width_peak = 100
-    half_width_step = 100
-    threshold = 0.01
-    gap_peak = 2  # not used unless filter is changed in z_score_statistics
-    gap_step = 3
+    half_width_peak = args.width_peak
+    half_width_step = args.width_step
+    threshold = args.read_threshold
+    gap_peak = args.gap_peak  # not used unless filter is changed in z_score_statistics
+    gap_step = args.gap_step
 
     ## Moving average of reads for identifying regions
-    ma_pad = 5
+    ma_pad = args.ma_pad
     ma_window = 2*ma_pad + 1
     conv = np.ones(ma_window) / ma_window
-    ma_min_reads = 0.5
-    gene_pad = 100
+    ma_min_reads = args.ma_reads
+    gene_pad = args.gene_pad
 
     # Calculate Statistics
     wigs = util.load_wigs(wig_index=args.wig)
@@ -345,7 +394,7 @@ if __name__ == '__main__':
         end_step = z_step_pos[0, :]
         start_comb = start_peak * start_step
         end_comb = end_peak * end_step
-        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb)
+        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb, args.score_threshold)
         tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)
 
         # Find regions and TUs for a specified gene or set of genes
@@ -367,6 +416,9 @@ if __name__ == '__main__':
             print('Plotting forward regions...')
             labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
             for i, (start, end) in enumerate(zip(region_starts, region_ends)):
+                if args.region and args.region != i:
+                    continue
+
                 util.plot_tus(start, end, genes, all_starts, all_ends, wigs, tu_genes[i],
                     path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_tus{args.label}.png'))
                 if args.plot_z:
@@ -395,7 +447,7 @@ if __name__ == '__main__':
         end_step = z_step_neg[1, ::-1]
         start_comb = start_peak * start_step
         end_comb = end_peak * end_step
-        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb[::-1], end_comb[::-1], rev=True)
+        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb[::-1], end_comb[::-1], args.score_threshold, rev=True)
         tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)[::-1]
 
         # Find regions and TUs for a specified gene or set of genes
@@ -417,6 +469,9 @@ if __name__ == '__main__':
             print('Plotting reverse regions...')
             labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
             for i, (start, end) in enumerate(zip(region_starts[::-1], region_ends[::-1])):
+                if args.region and args.region != i:
+                    continue
+
                 util.plot_tus(-start, -end, genes, all_starts, all_ends, wigs, tu_genes[i],
                     path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_tus{args.label}.png'))
                 if args.plot_z:
