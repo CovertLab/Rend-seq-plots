@@ -208,9 +208,10 @@ def identify_tu_locations(starts, ends, start_score, end_score, threshold=5, rev
         tu_starts = []
         tu_ends = []
         for ts in threshold_starts:
+            if rev:
+                ts = -ts
             for te in threshold_ends:
                 if rev:
-                    ts = -ts
                     te = -te
 
                 if ts < te:
