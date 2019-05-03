@@ -14,6 +14,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
 WIGS_DIR = os.path.join(DATA_DIR, 'wigs')
 GENOME_DIR = os.path.join(DATA_DIR, 'genome')
+ECOCYC_DIR = os.path.join(DATA_DIR, 'ecocyc')
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'out')
 if not os.path.exists(OUTPUT_DIR):
     os.mkdir(OUTPUT_DIR)
@@ -143,6 +144,88 @@ def load_genome(path=None):
     sort_idx = np.argsort(starts)
 
     return genes[sort_idx], locus_tags[sort_idx], starts[sort_idx], ends[sort_idx]
+
+def load_annotated_tu_directions():
+    '''
+    Gets annotated transcription unit directions (fwd or rev) from ecocyc data.
+    Fwd strand is represented by 1, rev strand is represented by -1.
+
+    Returns:
+        dict {TU (str): direction (int)}: annotated direction for a given transcription unit
+    '''
+
+    tu_file = os.path.join(ECOCYC_DIR, 'tus.tsv')
+
+    tu_directions = {}
+    with open(tu_file) as f:
+        reader = csv.reader(f, delimiter='\t')
+        next(reader)  # skip headers
+        for line in reader:
+            if '&larr' in line[1]:
+                direction = -1
+            elif '&rarr' in line[1]:
+                direction = 1
+            else:
+                continue
+
+            tu_directions[line[0]] = direction
+
+    return tu_directions
+
+def load_annotated_promoter_positions():
+    '''
+    Gets annotated promoter start positions from ecocyc data.
+
+    Returns:
+        ndarray[int]: annotated promoter positions
+    '''
+
+    promoter_file = os.path.join(ECOCYC_DIR, 'promoters.tsv')
+    tus = load_annotated_tu_directions()
+
+    starts = []
+    with open(promoter_file) as f:
+        reader = csv.reader(f, delimiter='\t')
+        next(reader)  # skip headers
+        for line in reader:
+            pos = line[1]
+            info = line[2]
+            if pos:
+                for tu in info.split(' // '):
+                    if tu in tus:
+                        starts.append(int(pos) * tus[tu])
+
+    return np.unique(starts)
+
+def load_annotated_terminator_positions():
+    '''
+    Gets annotated terminator positions from ecocyc data.
+
+    Returns:
+        ndarray[int]: annotated terminator positions
+    '''
+
+    terminator_file = os.path.join(ECOCYC_DIR, 'terminators.tsv')
+    tus = load_annotated_tu_directions()
+
+    terms = []
+    with open(terminator_file) as f:
+        reader = csv.reader(f, delimiter='\t')
+        next(reader)  # skip headers
+        for line in reader:
+            left_pos = line[1]
+            right_pos = line[2]
+            info = line[3]
+            for tu in info.split(' // '):
+                if tu in tus:
+                    direction = tus[tu]
+                    if direction == 1 and right_pos:
+                        terms.append(int(right_pos))
+                    elif direction == -1 and left_pos:
+                        terms.append(-int(left_pos))
+
+    return np.unique(terms)
+
 
 def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels=None, threshold=5, path=None):
     '''
