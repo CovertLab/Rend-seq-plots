@@ -279,6 +279,9 @@ def parse_args():
     parser.add_argument('-z', '--plot-z',
         action='store_true',
         help='Plot z statistic plots')
+    parser.add_argument('-a', '--annotated',
+        action='store_true',
+        help='Plot annotated promoter and termination sites')
     parser.add_argument('-l', '--label',
         default='',
         type=str,
@@ -422,7 +425,7 @@ if __name__ == '__main__':
                     continue
 
                 util.plot_tus(start, end, genes, all_starts, all_ends, wigs, tu_genes[i],
-                    path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_tus{args.label}.png'))
+                    args.annotated, path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_tus{args.label}.png'))
                 if args.plot_z:
                     scores = np.vstack((
                         start_peak[start:end], end_peak[start:end],
@@ -475,7 +478,7 @@ if __name__ == '__main__':
                     continue
 
                 util.plot_tus(-start, -end, genes, all_starts, all_ends, wigs, tu_genes[i],
-                    path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_tus{args.label}.png'))
+                    args.annotated, path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_tus{args.label}.png'))
                 if args.plot_z:
                     scores = np.vstack((
                         start_peak[-end:-start], end_peak[-end:-start],

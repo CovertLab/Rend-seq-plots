@@ -324,7 +324,7 @@ def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels
         plt.savefig(path)
     plt.close('all')
 
-def plot_tus(start, end, genes, starts, ends, reads, tus, path=None):
+def plot_tus(start, end, genes, starts, ends, reads, tus, annotated, path=None):
     '''
     Plots the reads of the 3' and 5' data on the given strand and the transcription
     units identified.
@@ -386,6 +386,24 @@ def plot_tus(start, end, genes, starts, ends, reads, tus, path=None):
     plt.figure()
     plt.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
     plot_genes(plt, genes, starts, ends)
+
+    if annotated:
+        p = load_annotated_promoter_positions()
+        t = load_annotated_terminator_positions()
+
+        if strand:
+            for pos in p[(p < start) & (p > end)]:
+                plt.axvline(pos, color='g', linestyle=(0, (4, 6)))
+
+            for pos in t[(t < start) & (t > end)]:
+                plt.axvline(pos, color='r', linestyle=(0, (4, 6)))
+        else:
+            for pos in p[(p > start) & (p < end)]:
+                plt.axvline(pos, color='g', linestyle=(0, (4, 6)))
+
+            for pos in t[(t > start) & (t < end)]:
+                plt.axvline(pos, color='r', linestyle=(0, (4, 6)))
+
 
     tu_start = -2
     tu_step = 0.2
