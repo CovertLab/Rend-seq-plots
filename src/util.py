@@ -226,6 +226,51 @@ def load_annotated_terminator_positions():
 
     return np.unique(terms)
 
+def fit_annotations_to_data(annotations, reads, window=10, read_cutoff=4):
+    '''
+    Adjust annotated positions to better match spikes in seq data by finding the max read counts
+    in a window around the annotated position.
+
+    Args:
+        annotations (ndarray[int]): annotated positions for promoter or terminators
+        reads (ndarray[float]): 2D array for fwd and rev reads, dims (2 (fwd, rev) x GENOME_SIZE)
+            5' wig data (5f or 5r) for promoters
+            3' wig data (3f or 3r) for terminators
+        winodw (int): window to either side of point to check
+
+    Returns:
+        ndarray[int]: adjusted annotations to align with data peaks
+            positive values will be forward strand starting with 1
+            negative values will be reverse strand starting with -1
+    '''
+
+    adjusted_annotations = []
+
+    for pos in annotations:
+        # Reverse strand
+        if pos < 0:
+            start = -(pos + window + 1)
+            end = -(pos - window)
+            data = reads[1, start:end]
+
+            max_pos = np.argmax(data)
+            if data[max_pos] < read_cutoff:
+                continue
+
+            adjusted_annotations.append(-(start + max_pos + 1))
+        # Forward strand
+        else:
+            start = pos - window - 1
+            end = pos + window
+            data = reads[0, start:end]
+
+            max_pos = np.argmax(data)
+            if data[max_pos] < read_cutoff:
+                continue
+
+            adjusted_annotations.append(start + max_pos + 1)
+
+    return np.unique(adjusted_annotations)
 
 def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels=None, threshold=5, path=None):
     '''
