@@ -12,7 +12,8 @@ import os
 import csv
 from matplotlib import pyplot as plt
 
-WIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+# import ipdb; ipdb.set_trace()
+WIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data/wigs')
 WIG_FILE = os.path.join(WIG_DIR, 'GSM2971252_Escherichia_coli_WT_Rend_seq_5_exo_MOPS_comp_25s_frag_pooled_{}_no_shadow.wig')
 WIG_STRANDS = ['3f', '3r', '5f', '5r']
 
@@ -42,7 +43,7 @@ def load_wigs(wig_file, strands, genome_size):
                 try:
                     d = np.array(list(reader))
                 except Exception as exc:
-                    print exc
+                    print(exc)
 
             index = np.array(d[:, 0], dtype=int) - 1
             reads = np.array(d[:, 1], dtype=float)
@@ -136,7 +137,7 @@ def backward_algo(signal, A, levels, variance):
     return beta[:, ::-1], Bs
 
 if __name__ == '__main__':
-    # reads = load_wigs(WIG_FILE, WIG_STRANDS, GENOME_SIZE)
+    reads = load_wigs(WIG_FILE, WIG_STRANDS, GENOME_SIZE)
 
     ## information for specific test cases
     # n_levels should be number of genes + 2 (for level at 0 and for peak level)
@@ -146,8 +147,11 @@ if __name__ == '__main__':
     end = 5233
     sigma_on = 0.5
     n_levels = 4
-    total_reads = np.array(json.load(open('hmm/f1_reads.json')))
-    # total_reads = reads[0, start:end] + reads[2, start:end]
+    # total_reads = np.array(json.load(open('hmm/f1_reads.json')))
+    total_reads = reads[0, start:end] + reads[2, start:end]
+    
+    ''' with open('f1_reads.json', 'w') as f:
+        json.dump(list(total_reads), f)
     # json.dump(list(total_reads), open('hmm/f1_reads.json', 'w'))
 
     # # f5
@@ -270,8 +274,30 @@ if __name__ == '__main__':
     # Potentially useful to use moving average to calculate levels
     window = 10
     clipped_index = int((window-1) / 2)  # For proper indexing since data is lost
-    ma = np.convolve(total_reads, np.ones((window,))/window, 'valid')
+    ma = np.convolve(total_reads, np.ones((window,))/window, 'valid')'''
+    
+    x = range(start,end)
+    g1 = reads[0, start:end]
+    g2 = reads[2, start:end]
+    fig, ax = plt.subplots()
+    plt.scatter(g1,g2)
+    plt.title('Scatter plot for 3f vs 5f')
+    # plt.legend(loc='4')
+    plt.xlabel('3f')
+    plt.ylabel('5f')
 
+    ax.plot(ax.get_xlim(), ax.get_ylim())    
+    plt.savefig("scatterplot-35.pdf")
+    # plt.savefig("scatterplot.pdf")
+
+    '''ax.hist(g1, color='blue')
+    ax.hist(g2, color='orange')
+    plt.show()
+    # plt.savefig('Histogram')'''
+    import ipdb; ipdb.set_trace()
+
+
+'''
     # Plot histrogram of level distributions
     plt.figure()
     for i, level in enumerate(levels):
@@ -318,3 +344,4 @@ if __name__ == '__main__':
     plt.plot(range(start,end), np.log10(total_reads+1))
     plt.plot(range(start,end)[1:], np.log10(assigned_levels+1))
     plt.show()
+    '''

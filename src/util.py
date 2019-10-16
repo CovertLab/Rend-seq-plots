@@ -10,11 +10,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
 WIGS_DIR = os.path.join(DATA_DIR, 'wigs')
 GENOME_DIR = os.path.join(DATA_DIR, 'genome')
 ECOCYC_DIR = os.path.join(DATA_DIR, 'ecocyc')
+VALIDATION_DIR = os.path.join(DATA_DIR, 'validation')
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'out')
 if not os.path.exists(OUTPUT_DIR):
     os.mkdir(OUTPUT_DIR)
@@ -344,6 +346,9 @@ def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels
     # Plot only reads
     ax = plt.subplot(n_plots, 1, 1)
     ax.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
+    
+
+    
     plot_genes(plt, genes, starts, ends)
     plt.ylabel('Reads (log)')
 
@@ -369,7 +374,7 @@ def plot_reads(start, end, genes, starts, ends, reads, scores=None, score_labels
         plt.savefig(path)
     plt.close('all')
 
-def plot_tus(start, end, genes, starts, ends, reads, tus, annotated, path=None):
+def plot_tus(start, end, genes, starts, ends, reads, analysis, tus, annotated, path=None):
     '''
     Plots the reads of the 3' and 5' data on the given strand and the transcription
     units identified.
@@ -382,6 +387,7 @@ def plot_tus(start, end, genes, starts, ends, reads, tus, annotated, path=None):
         ends (ndarray[int]): end position for each gene
         reads (ndarray[float]): reads for each strand at each position
             dims (strands x genome length)
+        analysis (ndarray[int]): positions for tp, fp and fn in the genome
         tus (list[set[str]]): set of all unique transcription units in each gene region
             with genes in the same transcription unit separated by :
         path (str): path to save image, if None, just displays image to screen
@@ -430,6 +436,29 @@ def plot_tus(start, end, genes, starts, ends, reads, tus, annotated, path=None):
 
     plt.figure()
     plt.step(loc, np.vstack((three_prime, five_prime)).T, linewidth=0.25)
+
+    # Test for accuracy of sensitivity analysis
+    if strand:
+        for i in range(end, start):
+            for j in analysis:
+                if -i in analysis[j]["reverse_ends"]:
+                    plt.annotate(j, xy=(i, three_prime[i-end]), xytext=(i, three_prime[i-end]),
+                                 arrowprops=dict(facecolor='k', arrowstyle="simple"))
+                    # plt.axvline(i, color='r', dashes=(1,2,1,2))
+                elif -i in analysis[j]["reverse_starts"]:
+                    plt.annotate(j, xy=(i, five_prime[i-end]), xytext=(i, three_prime[i-end]),
+                                 arrowprops=dict(facecolor='blue', arrowstyle="wedge"))
+    else:
+        for i in range(start, end):
+            for j in analysis:
+                if i in analysis[j]["ends"]:
+                    plt.annotate(j, xy=(i, three_prime[i-start]), xytext=(i, three_prime[i-start]+0.2),
+                                 arrowprops=dict(facecolor='k', arrowstyle="simple"))
+                    # plt.axvline(i, color='r', dashes=(1,2,1,2))
+                elif i in analysis[j]["starts"]:
+                    plt.annotate(j, xy=(i, five_prime[i-start]), xytext=(i-1, three_prime[i-start]),
+                                 arrowprops=dict(facecolor='blue', arrowstyle="wedge"))
+
     plot_genes(plt, genes, starts, ends)
 
     if annotated:

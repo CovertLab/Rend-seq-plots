@@ -10,6 +10,8 @@ import numpy as np
 
 import util
 
+import json
+import csv
 
 def z_peak_score(wigs, half_width, gap, threshold):
     '''
@@ -44,13 +46,29 @@ def z_peak_score(wigs, half_width, gap, threshold):
     for i, strand in enumerate(wigs):
         strand2 = strand**2
 
+        above_threshold = np.zeros(util.GENOME_SIZE)
+        for conv in [right_conv, left_conv]:
+            average = np.convolve(strand, conv, 'same')
+            std = np.sqrt(np.convolve(strand2, conv, 'same') - average**2)
+            above_threshold += (average > threshold)
+            value = (strand - average) / (std + (average == 0))
+            z_peak_sum[i, :] += value
+            value[value < 0] = 0
+            z_peak_prod[i, :] *= value
+
+        z_peak_prod[i, above_threshold == 0] = 0
+
+
+    '''for i, strand in enumerate(wigs):
+        strand2 = strand**2
+
         for conv in [right_conv, left_conv]:
             average = np.convolve(strand, conv, 'same')
             std = np.sqrt(np.convolve(strand2, conv, 'same') - average**2)
             value = (average > threshold) * (strand - average) / (std + (average == 0))
             z_peak_sum[i, :] += value
             value[value < 0] = 0
-            z_peak_prod[i, :] *= value
+            z_peak_prod[i, :] *= value'''
 
     z_peak = 2 * z_peak_prod / (z_peak_sum + (z_peak_sum == 0))  # harmonic mean
 
@@ -254,6 +272,41 @@ def identify_tu_genes(tu_starts, tu_ends, genes, gene_starts, gene_ends):
 
     return tu_genes
 
+def annotate(begin, terminate, annotate_position):
+    '''
+    Classifies result of model into TP, FP, FN and TN
+    
+    Args:
+        begin (list[int]): start position for each region
+        terminate (list[int]): end position for each region
+        annotate_position (int): Last position to be annotated
+    '''
+    data = {begin: tu_starts, terminate: tu_ends} 
+ 
+    for key in [begin, terminate]:
+        for j, num in enumerate(data[key]):
+            for h in set(data[key][j]):
+                if abs(h) <= annotate_position:
+                    if abs(h)+1 in valid_data[key]:
+                        tp[key].append(abs(h)+1)
+                    else:
+                        fp[key].append(abs(h)+1)
+        for i in valid_data[key]:
+            if i not in tp[key]:
+                fn[key].append(i)
+                
+        tp_count[key].append(len(tp[key])) 
+        fp_count[key].append(len(fp[key]))
+        fn_count[key].append(len(fn[key]))
+        if annotate_position == 750000:
+            tn[key] = annotate_position - len(tp[key]) - len(fp[key]) - len(fn[key])
+        if annotate_position == 500000:
+            tn[key] = annotate_position - len(tp[key]) - len(fp[key]) - len(fn[key])
+
+        sen[key] = (tp_count[key][0])/(tp_count[key][0] + fn_count[key][0])
+        prec[key] = (tp_count[key][0])/(tp_count[key][0] + fp_count[key][0])
+        f_score[key] = 2*((sen[key]*prec[key])/(sen[key]+prec[key])) 
+    
 def parse_args():
     '''
 	Parses arguments from the command line.
@@ -332,7 +385,7 @@ def parse_args():
         help='Minimum number of positions from a gene to include in a region')
     parser.add_argument('--score-threshold',
         type=float,
-        default=5,
+        default=10, # default is 5.
         help='Threshold of score to identify start/termination')
 
     return parser.parse_args()
@@ -347,6 +400,7 @@ if __name__ == '__main__':
         else:
             args.region = -args.region
             args.fwd = False
+
 
     # Parameters for analysis
     ## z statistics
@@ -367,123 +421,185 @@ if __name__ == '__main__':
 
     # Calculate Statistics
     wigs = util.load_wigs(wig_index=args.wig)
+    wigs2 = wigs ** (1 / 2)
     total_reads = np.zeros((2, util.GENOME_SIZE))
     total_reads[0, :] = wigs[0, :] + wigs[2, :]
     total_reads[1, :] = wigs[1, :] + wigs[3, :]
     print('Calculating z scores...')
-    z_peak = z_peak_score(wigs, half_width_peak, gap_peak, threshold)
-    z_step = z_step_score(total_reads, half_width_step, gap_step, threshold)
+    
+    # Run through different values of parameters
+    position_keys = ['starts', 'ends', 'reverse_starts', 'reverse_ends']
+    params = {"half_width_peak": [100, 250, 500,1000], "gap_peak": [2, 3, 5], "threshold": [0.01, 0.02, 0.05, 0.1,0.2], "half_width_step": [100], "gap_step": [3]}
+        
+    with open('z-peak.csv' , 'w') as file:  
+        writer = csv.writer(file, delimiter = '\t')
+        writer.writerow(['{}params'.format(k) for k in sorted(params)] + ['{}tp_count'.format(k) for k in position_keys] + 
+                                             ['{}fp_count'.format(k) for k in position_keys]+ ['{}fn_count'.format(k) for k in position_keys]+
+                                             ['{}tn'.format(k) for k in position_keys] + ['{}sen'.format(k) for k in position_keys]+['{}prec'.format(k) for k in position_keys]+
+                                             ['{}f_score'.format(k) for k in position_keys]+['{}tp'.format(k) for k in position_keys] + ['{}fp'.format(k) for k in position_keys] + 
+                                             ['{}fn'.format(k) for k in position_keys]
+                                             )
+        
+        for a in params['half_width_peak']:
+            for b in params['gap_peak']:
+                for c in params['threshold']:
+                    for d in params['half_width_step']:
+                        for e in params['gap_step']:
+                            
+                            # Create sensitivity analysis categories
+                            tp = {k: [] for k in position_keys}
+                            fp = {k: [] for k in position_keys}
+                            tn = {k: [] for k in position_keys}
+                            fn = {k: [] for k in position_keys}
+                            analysis = {"tp":tp, "fp":fp, "fn":fn}
+                            tp_count = {k: [] for k in position_keys}
+                            fp_count = {k: [] for k in position_keys}
+                            fn_count = {k: [] for k in position_keys}
+                            sen = {k: [] for k in position_keys}
+                            prec = {k: [] for k in position_keys}
+                            f_score = {k: [] for k in position_keys}
+                                    
+                            z_peak = z_peak_score(wigs, a, b, c)
+                            z_step = z_step_score(total_reads, d, e, c)
+                        
+                            z_step_neg = -z_step
+                            z_step_pos = z_step
+                            z_step_neg[z_step_neg < 0] = 0
+                            z_step_pos[z_step_pos < 0] = 0
 
-    z_step_neg = -z_step
-    z_step_pos = z_step
-    z_step_neg[z_step_neg < 0] = 0
-    z_step_pos[z_step_pos < 0] = 0
+                            # Load genome info
+                            genes, locus, all_starts, all_ends = util.load_genome()
+                        
 
-    # Load genome info
-    genes, locus, all_starts, all_ends = util.load_genome()
+                            # Load annotated data
+                            with open(os.path.join(util.VALIDATION_DIR, 'annotated_spikes.json') ) as valid:
+                                    valid_data = json.load(valid)
+                                    
+                            
+                            # Identify separate regions of genes for the forward strand
+                            if args.fwd:
+                                print('Identifying forward regions...')
+                                reads = wigs[0, :] + wigs[2, :]
+                                ma_reads = np.convolve(reads, conv, 'same')
+                                no_reads = np.where(ma_reads < ma_min_reads)[0]
+                        
+                                starts = all_starts[all_starts > 0]
+                                ends = all_ends[all_ends > 0]
+                        
+                                region_starts, region_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
+                                start_peak = z_peak[2, :]
+                                end_peak = z_peak[0, :]
+                                start_step = z_step_neg[0, :]
+                                end_step = z_step_pos[0, :]
+                                start_comb = start_peak * start_step
+                                end_comb = end_peak * end_step
+                                # tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb, score_threshold)
+                                tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_peak, end_peak, score_threshold)
+                                tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)
+                                
+                    
+                                # Append results generated by model into their categories
+                                
+                                annotate("starts", "ends", 750000)
 
-    # Identify separate regions of genes for the forward strand
-    if args.fwd:
-        print('Identifying forward regions...')
-        reads = wigs[0, :] + wigs[2, :]
-        ma_reads = np.convolve(reads, conv, 'same')
-        no_reads = np.where(ma_reads < ma_min_reads)[0]
+                                # Find regions and TUs for a specified gene or set of genes
+                                '''if args.gene:
+                                    for i, tus in enumerate(tu_genes):
+                                        skip = False
+                                        for tu in tus:
+                                            for g in tu.split(':'):
+                                                if g.startswith(args.gene):
+                                                    print(i, tus)
+                                                    skip = True
+                                                    break
+                        
+                                            if skip:
+                                                break
+                        
+                                # Plot forward strand regions
+                                if args.plot:
+                                    print('Plotting forward regions...')
+                                    labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
+                                    for i, (start, end) in enumerate(zip(region_starts, region_ends)):
+                                        if args.region and args.region != i:
+                                            continue
+                                        # import ipdb; ipdb.set_trace()
+                                        util.plot_tus(start, end, genes, all_starts, all_ends, wigs, analysis, tu_genes[i],
+                                            args.annotated, path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_tus{args.label}.png'))
+                                        if args.plot_z:
+                                            scores = np.vstack((
+                                                start_peak[start:end], end_peak[start:end],
+                                                start_step[start:end], end_step[start:end],
+                                                start_comb[start:end], end_comb[start:end],
+                                                ))
+                                            util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, threshold=score_threshold,
+                                                score_labels=labels, path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{args.label}.png'))'''
+                        
 
-        starts = all_starts[all_starts > 0]
-        ends = all_ends[all_ends > 0]
+                    
+                            # Identify separate regions of genes for the reverse strand
+                            if args.rev:
+                                print('Identifying reverse regions...')
+                                reads = wigs[1, :] + wigs[3, :]
+                                ma_reads = np.convolve(reads[::-1], conv, 'same')
+                                no_reads = np.where(ma_reads < ma_min_reads)[0]
+                        
+                                starts = -all_starts[all_starts < 0][::-1]
+                                ends = -all_ends[all_ends < 0][::-1]
+                        
+                                region_starts, region_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
+                                start_peak = z_peak[3, ::-1]
+                                end_peak = z_peak[1, ::-1]
+                                start_step = z_step_pos[1, ::-1]
+                                end_step = z_step_neg[1, ::-1]
+                                start_comb = start_peak * start_step
+                                end_comb = end_peak * end_step
+                                tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_peak[::-1], end_peak[::-1], score_threshold, rev=True)
+                                tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)[::-1]
+                                
+                                # Append results generated by model into their categories
+                                annotate("reverse_starts", "reverse_ends", 500000)
+                            
+                            # Write results of category distribution into a file    
+                            writer.writerow([b, e, a, d, c] + [tp_count[k][0] for k in position_keys] +
+                                                [fp_count[k][0] for k in position_keys] + [fn_count[k][0] for k in
+                                                                                           position_keys] +
+                                                [tn[k] for k in position_keys] + [sen[k] for k in position_keys] +
+                                                [prec[k] for k in position_keys] + [f_score[k] for k in position_keys] +
+                                                [tp[k] for k in position_keys] + [fp[k] for k in position_keys] +
+                                                [fn[k] for k in position_keys]
+                                                 )
 
-        region_starts, region_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
-        start_peak = z_peak[2, :]
-        end_peak = z_peak[0, :]
-        start_step = z_step_neg[0, :]
-        end_step = z_step_pos[0, :]
-        start_comb = start_peak * start_step
-        end_comb = end_peak * end_step
-        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb, end_comb, score_threshold)
-        tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)
+                            '''#Find regions and TUs for a specified gene or set of genes
+                            if args.gene:
+                                for i, tus in enumerate(tu_genes):
+                                    skip = False
+                                    for tu in tus:
+                                        for g in tu.split(':'):
+                                            if g.startswith(args.gene):
+                                                print(i, tus)
+                                                skip = True
+                                                break
 
-        # Find regions and TUs for a specified gene or set of genes
-        if args.gene:
-            for i, tus in enumerate(tu_genes):
-                skip = False
-                for tu in tus:
-                    for g in tu.split(':'):
-                        if g.startswith(args.gene):
-                            print(i, tus)
-                            skip = True
-                            break
+                                        if skip:
+                                            break
 
-                    if skip:
-                        break
+                            # Plot reverse strand regions
+                            if args.plot:
+                                print('Plotting reverse regions...')
+                                labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
+                                for i, (start, end) in enumerate(zip(region_starts[::-1], region_ends[::-1])):
+                                    if args.region and args.region != i:
+                                        continue
 
-        # Plot forward strand regions
-        if args.plot:
-            print('Plotting forward regions...')
-            labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
-            for i, (start, end) in enumerate(zip(region_starts, region_ends)):
-                if args.region and args.region != i:
-                    continue
+                                    util.plot_tus(-start, -end, genes, all_starts, all_ends, wigs, analysis, tu_genes[i],
+                                        args.annotated, path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_tus{args.label}.png'))
+                                    if args.plot_z:
+                                        scores = np.vstack((
+                                            start_peak[-end:-start], end_peak[-end:-start],
+                                            start_step[-end:-start], end_step[-end:-start],
+                                            start_comb[-end:-start], end_comb[-end:-start],
+                                            ))
+                                        util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, threshold=score_threshold,
+                                            score_labels=labels, path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{args.label}.png'))'''
 
-                util.plot_tus(start, end, genes, all_starts, all_ends, wigs, tu_genes[i],
-                    args.annotated, path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}_tus{args.label}.png'))
-                if args.plot_z:
-                    scores = np.vstack((
-                        start_peak[start:end], end_peak[start:end],
-                        start_step[start:end], end_step[start:end],
-                        start_comb[start:end], end_comb[start:end],
-                        ))
-                    util.plot_reads(start, end, genes, all_starts, all_ends, wigs, scores=scores, threshold=score_threshold,
-                        score_labels=labels, path=os.path.join(util.OUTPUT_DIR, f'fwd_{i}{args.label}.png'))
-
-    # Identify separate regions of genes for the reverse strand
-    if args.rev:
-        print('Identifying reverse regions...')
-        reads = wigs[1, :] + wigs[3, :]
-        ma_reads = np.convolve(reads[::-1], conv, 'same')
-        no_reads = np.where(ma_reads < ma_min_reads)[0]
-
-        starts = -all_starts[all_starts < 0][::-1]
-        ends = -all_ends[all_ends < 0][::-1]
-
-        region_starts, region_ends = identify_regions(starts, ends, no_reads, gene_pad, ma_pad)
-        start_peak = z_peak[3, ::-1]
-        end_peak = z_peak[1, ::-1]
-        start_step = z_step_pos[1, ::-1]
-        end_step = z_step_neg[1, ::-1]
-        start_comb = start_peak * start_step
-        end_comb = end_peak * end_step
-        tu_starts, tu_ends = identify_tu_locations(region_starts, region_ends, start_comb[::-1], end_comb[::-1], score_threshold, rev=True)
-        tu_genes = identify_tu_genes(tu_starts, tu_ends, genes, all_starts, all_ends)[::-1]
-
-        # Find regions and TUs for a specified gene or set of genes
-        if args.gene:
-            for i, tus in enumerate(tu_genes):
-                skip = False
-                for tu in tus:
-                    for g in tu.split(':'):
-                        if g.startswith(args.gene):
-                            print(i, tus)
-                            skip = True
-                            break
-
-                    if skip:
-                        break
-
-        # Plot reverse strand regions
-        if args.plot:
-            print('Plotting reverse regions...')
-            labels = ['z peak (start)', 'z peak (end)', 'z step (start)', 'z step (end)', 'combined (start)', 'combined (end)']
-            for i, (start, end) in enumerate(zip(region_starts[::-1], region_ends[::-1])):
-                if args.region and args.region != i:
-                    continue
-
-                util.plot_tus(-start, -end, genes, all_starts, all_ends, wigs, tu_genes[i],
-                    args.annotated, path=os.path.join(util.OUTPUT_DIR, f'rev_{i}_tus{args.label}.png'))
-                if args.plot_z:
-                    scores = np.vstack((
-                        start_peak[-end:-start], end_peak[-end:-start],
-                        start_step[-end:-start], end_step[-end:-start],
-                        start_comb[-end:-start], end_comb[-end:-start],
-                        ))
-                    util.plot_reads(-start, -end, genes, all_starts, all_ends, wigs, scores=scores, threshold=score_threshold,
-                        score_labels=labels, path=os.path.join(util.OUTPUT_DIR, f'rev_{i}{args.label}.png'))
