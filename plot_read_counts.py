@@ -55,7 +55,7 @@ def plot_read_counts(range, reversed, wig_index, ymax, filename):
     for gene, gene_start, gene_end in zip(genes[mask], gene_starts[mask], gene_ends[mask]):
         ax1.hlines(0, gene_start, gene_end, linewidth=2)
         ax1.vlines([gene_start, gene_end], -1, 1, linewidth=1)
-        ax1.text((gene_start + gene_end)/2, 1, gene, size=8, ha='center')
+        ax1.text((gene_start + gene_end)/2, 2, gene, size=8, ha='center')
 
     ax1.set_ylim([-3, 3])
     ax1.axes.get_yaxis().set_visible(False)
