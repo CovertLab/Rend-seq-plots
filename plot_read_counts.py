@@ -33,7 +33,7 @@ def plot_read_counts(range, reversed, wig_index, ymax, filename):
     genes, _, gene_starts, gene_ends = util.load_genome()
     mask = (gene_starts >= start) & (gene_ends <= end)
 
-    fig, axes = plt.subplots(2, 1, figsize=(9, 3), sharex=True, gridspec_kw={'height_ratios': [7, 1]})
+    fig, axes = plt.subplots(2, 1, figsize=(7, 2.5), sharex=True, gridspec_kw={'height_ratios': [7, 1]})
 
     # Plot reads
     ax0 = axes[0]
