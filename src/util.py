@@ -58,7 +58,6 @@ def load_wigs(wig_index=1, strands=None, genome_size=None, cached=True):
     # Check for cached results and return if exists
     cached_file = PROCESSED_WIG_FILES[wig_index]
     if cached and os.path.exists(cached_file):
-        print('Loaded cached read data')
         return np.load(cached_file)
 
     # Defaults in file for E. coli if none given
