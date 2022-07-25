@@ -19,19 +19,20 @@ def plot_read_counts(range, reversed, wig_index, ymax, filename):
     start = range[0]
     end = range[1]
 
+    genes, _, gene_starts, gene_ends = util.load_genome()
+
     # Reverse strand
     if reversed:
+        mask = (gene_starts <= start) & (gene_ends >= end)
         loc = np.arange(end, start)
         three_prime = reads[1, (-start - 1):(-end - 1)][::-1]
         five_prime = reads[3, (-start - 1):(-end - 1)][::-1]
     # Forward strand
     else:
+        mask = (gene_starts >= start) & (gene_ends <= end)
         loc = np.arange(start, end)
         three_prime = reads[0, (start - 1):(end - 1)]
         five_prime = reads[2, (start - 1):(end - 1)]
-
-    genes, _, gene_starts, gene_ends = util.load_genome()
-    mask = (gene_starts >= start) & (gene_ends <= end)
 
     fig, axes = plt.subplots(2, 1, figsize=(7, 2.5), sharex=True, gridspec_kw={'height_ratios': [7, 1]})
 
@@ -39,7 +40,10 @@ def plot_read_counts(range, reversed, wig_index, ymax, filename):
     ax0 = axes[0]
     ax0.step(loc, three_prime, linewidth=1, alpha=0.5, zorder=1, label="3'-mapped")
     ax0.step(loc, five_prime, linewidth=1, alpha=0.5, zorder=0, label="5'-mapped")
-    ax0.set_xlim([start, end])
+    if reversed:
+        ax0.set_xlim([end, start])
+    else:
+        ax0.set_xlim([start, end])
     ax0.set_ylim([1, 10**ymax])
     ax0.set_ylabel('R-end seq reads')
     ax0.set_yscale('log')
@@ -48,7 +52,7 @@ def plot_read_counts(range, reversed, wig_index, ymax, filename):
     ax0.spines['bottom'].set_visible(False)
     ax0.spines['right'].set_visible(False)
     ax0.spines['top'].set_visible(False)
-    ax0.legend(loc=1)
+    ax0.legend(loc=1, fontsize=5)
 
     # Plot gene locations
     ax1 = axes[1]
@@ -70,6 +74,7 @@ def plot_read_counts(range, reversed, wig_index, ymax, filename):
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     plt.savefig(os.path.join(out_dir, filename))
+    plt.close()
 
 
 def parse_args():
