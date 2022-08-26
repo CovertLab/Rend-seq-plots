@@ -1,4 +1,4 @@
-# Rend-seq
+# Rend-seq-plots
 
 This repository contains the data and code that is necessary to
 visualize the end-enriched RNA sequencing (Rend-seq) data reported
