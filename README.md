@@ -8,7 +8,7 @@ via a whole-cell model suggests alternative cellular benefits
 for low- versus high-expressing operons" (2022), manuscript in preparation.
 
 You can reach out to [Gwanggyu Sun](ggsun@stanford.edu) for any questions
-about the code or data in this repository.
+about the code in this repository.
 
 This repository was developed with Python 3.8.7. After installing Python, you can install
 all of the required packages by running
