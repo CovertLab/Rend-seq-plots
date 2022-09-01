@@ -7,7 +7,7 @@ for Sun et al., "Cross-evaluation of E. coli’s operon structures
 via a whole-cell model suggests alternative cellular benefits
 for low- versus high-expressing operons" (2022), manuscript in preparation.
 
-You can reach out to [Gwanggyu Sun](ggsun@stanford.edu) for any questions
+You can reach out to ggsun AT stanford.edu for any questions
 about the code in this repository.
 
 This repository was developed with Python 3.8.7. After installing Python, you can install
