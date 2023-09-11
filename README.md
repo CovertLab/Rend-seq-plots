@@ -17,7 +17,7 @@ all of the required packages by running
 pip install -r requirements.txt
 ```
 
-To regenerate all Rend-seq figures used in Sun et al. (2022), run
+To regenerate all Rend-seq figures used in Sun et al. (2023), run
 
 ```shell
 bash runscripts/paper_figures.sh
